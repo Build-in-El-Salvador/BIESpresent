@@ -334,6 +334,13 @@ body.show-cursor{cursor:default}
   opacity:0; pointer-events:none; transition:opacity .35s ease;
 }
 body.show-cursor #controls{opacity:1;pointer-events:auto}
+/* Chrome's PDF viewer takes the keyboard the moment it is clicked, and a
+   mousemove over it never reaches this page — so while anything is on the
+   wall the way out stays put instead of fading after two seconds. */
+body.on-air #controls{opacity:1;pointer-events:auto}
+body.on-air{cursor:default}
+#offbtn{display:none}
+body.on-air #offbtn{display:inline-flex}
 .ctl{
   appearance:none; font-family:var(--font-sans);
   font-size:.85vw; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
@@ -800,7 +807,7 @@ body.audience.not-full #fshint{display:block}
 #quota.warn{color:var(--orange)}
 </style>
 </head>
-<body>
+<body tabindex="-1">
 <div id="drift"></div>
 
 <div id="stage">
@@ -899,6 +906,7 @@ body.audience.not-full #fshint{display:block}
   <button class="ctl" id="keysbtn" title="Show the operator keys (?)">Keys</button>
   <button class="ctl" id="secondbtn" title="Send the audience view to the other display (S)">Second screen</button>
   <button class="ctl" id="fsbtn" title="Fullscreen (F)">Fullscreen</button>
+  <button class="ctl" id="offbtn" title="Take whatever is on the screen off air (X)">Take off air</button>
   <button class="ctl primary" id="editbtn" title="Edit tonight (E)">Edit tonight</button>
 </div>
 
@@ -917,6 +925,7 @@ body.audience.not-full #fshint{display:block}
       <dt>Space</dt>        <dd>Pause / resume the schedule clock</dd>
       <dt>1 &hellip; 4</dt> <dd>Hold one panel (tonight / upcoming / QR / partners)</dd>
       <dt>R</dt>            <dd>Resume panel rotation</dd>
+      <dt>X</dt>            <dd>Take whatever is on the screen off air</dd>
       <dt>B</dt>            <dd>Blackout — clean screen for the projector</dd>
       <dt>E</dt>            <dd>Edit tonight's schedule</dd>
       <dt>S</dt>            <dd>Send the audience view to the second screen</dd>
@@ -1610,6 +1619,11 @@ const AUDIENCE = new URLSearchParams(location.search).get("view") === "audience"
 const REHEARSE_SPEED = 240;          // a 3-hour night replays in well under a minute
 const WARN_SEC = 120;                // countdown turns orange inside this
 
+/* How long a refresh can take and still count as the same sitting. Reload
+   mid-talk and the deck stays on the wall; open the file the next morning and
+   the board comes up clean instead of showing last night's slide. */
+const AIR_RESTORE_MS = 30 * 60 * 1000;
+
 /* ── Media store ───────────────────────────────────────────────────────
    Slides, photos, clips and audio are far too big for localStorage, so the
    files themselves live in IndexedDB and the config holds only their ids.
@@ -1732,9 +1746,13 @@ let lastLiveOut = "", lastLiveIn = "", lastCfgIn = "";
 
 function publishLive() {
   const snap = liveSnapshot();
-  if (snap === lastLiveOut) return;
-  lastLiveOut = snap;
-  try { localStorage.setItem(LIVE, snap); } catch (_) {}
+  if (snap === lastLiveOut) return;          // compared without the stamp, or
+  lastLiveOut = snap;                        // every tick would count as a change
+  try {
+    const out = JSON.parse(snap);
+    out.at = Date.now();
+    localStorage.setItem(LIVE, JSON.stringify(out));
+  } catch (_) {}
 }
 
 // Called every tick in the audience window: pull config and runtime state across.
@@ -2081,6 +2099,7 @@ function renderAir() {
       } else if (a.kind === "pdf") {
         node = document.createElement("embed");
         node.type = "application/pdf";
+        node.tabIndex = -1;
         /* Chrome's own PDF viewer, with its chrome switched off. Verified on
            file://: no toolbar, no scrollbars, page fitted. It will not accept
            a page change after loading, though — which is why a deck the tech
@@ -2101,6 +2120,17 @@ function renderAir() {
       mounted.node.loop  = !!a.loop;
     }
     applyCmd(a);
+  }
+
+  /* Chrome hands the keyboard to its PDF plugin the moment the plugin is
+     clicked, and fires no focus event on the way — so the only way to notice is
+     to look. Left alone it swallows every key, and an operator facing a
+     full-screen PDF loses E, B and X at once. Taking focus back each tick keeps
+     them all working, and the wheel still scrolls the PDF, because wheel events
+     follow the pointer rather than the focus. */
+  if (!AUDIENCE && mounted.kind === "pdf" && document.activeElement === mounted.node) {
+    mounted.node.blur();
+    if (document.body) document.body.focus();
   }
 
   const slug = $("#airslug");
@@ -2132,6 +2162,7 @@ function tick() {
     renderAir();
     renderSetupLive();
     $("#blackout").classList.toggle("live", rt.blackout);
+    if (!AUDIENCE) document.body.classList.toggle("on-air", !!(rt.air && rt.air.key));
     if (!AUDIENCE) { publishLive(); renderSecondChip(); }
   } catch (e) {
     console.error("tick", e);          // one bad segment must not freeze the clock
@@ -2224,22 +2255,38 @@ function fullscreen() {
    otherwise it opens as a normal window for the operator to drag across.     */
 let secondWin = null;
 
-async function openSecondScreen() {
+function openSecondScreen() {
   if (secondWin && !secondWin.closed) { secondWin.focus(); return; }
   const base = location.href.split("?")[0].split("#")[0];
-  let feat = "width=1280,height=720,left=60,top=60";
-  try {
-    if (window.getScreenDetails) {
-      const det = await window.getScreenDetails();
-      const ext = det.screens.find(s => !s.isPrimary) || null;
-      if (ext) feat = `left=${ext.availLeft},top=${ext.availTop},`
-                    + `width=${ext.availWidth},height=${ext.availHeight}`;
-    }
-  } catch (_) { /* permission denied or unsupported — the manual route still works */ }
   publishLive();
-  secondWin = window.open(base + "?view=audience", "biesAudience", feat);
-  if (!secondWin) alert("The browser blocked the second window. Allow pop-ups for this file and try again.");
+
+  /* Opened synchronously, inside the very click or keypress that asked for it.
+     Asking the browser where the external display is has to wait: `await`
+     spends the user gesture, and a window opened outside one is a popup. Chrome
+     lets that through, Brave does not — which is why this used to open nothing
+     at all in Brave, with no message to say why. */
+  secondWin = window.open(base + "?view=audience", "biesAudience",
+                          "width=1280,height=720,left=60,top=60");
+  if (!secondWin) {
+    alert("The browser blocked the second window. Allow pop-ups for this file and try again.");
+    return;
+  }
   renderSecondChip();
+  placeOnExternal(secondWin);
+}
+
+// Now that the window exists, put it on the projector if the browser will say
+// where that is. If it will not, the operator drags it across once and the
+// browser remembers.
+async function placeOnExternal(win) {
+  try {
+    if (!window.getScreenDetails) return;
+    const det = await window.getScreenDetails();
+    const ext = det.screens.find(s => !s.isPrimary);
+    if (!ext || !win || win.closed) return;
+    win.moveTo(ext.availLeft, ext.availTop);
+    win.resizeTo(ext.availWidth, ext.availHeight);
+  } catch (_) { /* permission denied or unsupported — the manual route still works */ }
 }
 
 function renderSecondChip() {
@@ -2276,6 +2323,7 @@ document.addEventListener("keydown", e => {
     case "f": case "F": fullscreen(); break;
     case "ArrowRight": case "n": case "N": advance(); break;
     case "ArrowLeft": back(); break;
+    case "x": case "X": airOff(); break;
     case "PageDown": if (airDeckId()) { e.preventDefault(); airStep(1); }  break;
     case "PageUp":   if (airDeckId()) { e.preventDefault(); airStep(-1); } break;
     case "=": slip(5); break;
@@ -2317,6 +2365,7 @@ document.addEventListener("mousemove", () => reveal(2500));
 document.addEventListener("pointerdown", () => reveal(4000));
 
 $("#editbtn").addEventListener("click", openSetup);
+$("#offbtn").addEventListener("click", () => { airOff(); reveal(4000); });
 $("#fsbtn").addEventListener("click", fullscreen);
 $("#secondbtn").addEventListener("click", openSecondScreen);
 $("#keysbtn").addEventListener("click", () => { $("#help").classList.toggle("live"); reveal(4000); });
@@ -4109,7 +4158,11 @@ $("#resetbtn").addEventListener("click", () => {
        handle on it. */
     try {
       const l = JSON.parse(localStorage.getItem(LIVE) || "null");
-      if (l && l.air && l.air.key) rt.air = l.air;
+      const fresh = l && l.at && Date.now() - l.at < AIR_RESTORE_MS;
+      if (fresh && l.air && l.air.key) rt.air = l.air;
+      // Anything older belongs to a night that is over. Leaving it alone is not
+      // an option either — the second screen may still be showing it — so the
+      // first publishLive() of this session clears it there too.
     } catch (_) {}
   }
   tick();

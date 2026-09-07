@@ -107,6 +107,14 @@ const CFG={name:'Social Night',code:'SN20260902',date:'2026-09-02',start:'18:30'
 
   await aud.screenshot({path:'shot-audience.png'});
   await op.screenshot({path:'shot-operator.png'});
+  /* The window has to be opened inside the gesture that asked for it. Awaiting
+     the screen layout first spends the gesture, and the popup is then blocked
+     outright — Brave did exactly that, silently: no second screen and no
+     message. Keeping the opener synchronous is the fix, so pin it here. */
+  ok('the opener does not await before opening',
+     await op.evaluate(() => openSecondScreen.constructor.name) === 'Function',
+     await op.evaluate(() => openSecondScreen.constructor.name));
+
   ok('no errors in either window', errs.length===0, errs.join(' | '));
 
   await b.close();

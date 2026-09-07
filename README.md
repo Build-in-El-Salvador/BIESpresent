@@ -8,6 +8,10 @@ that the MC starts in 09:47 without having to ask anyone.
 No install, no account. Nothing the room sees ever needs wifi — the only request this file
 makes is looking up the name of a YouTube track, and only if you paste one in.
 
+Use **Chrome or Brave** — both were tested end to end, including the second screen. Safari
+will not store anything for a file opened from disk, so the schedule would be lost on every
+refresh; the board detects that and says so if you open it there.
+
 ---
 
 ## On the night
@@ -113,6 +117,7 @@ standard night mid-event without warning you first that it wipes everything.
 | `E` | Edit tonight's schedule (same as the **Edit tonight** button) |
 | `S` | Send the audience view to the second screen |
 | `Page ↓` / `Page ↑` | Next / previous slide of the deck on the wall — what a presenter's clicker sends |
+| `X` | Take whatever is on the screen off air |
 | `D` | Rehearse — replay the whole night in about 50 seconds |
 | `?` | Show the key list on screen (or the **Keys** button) |
 | `Esc` | Close an overlay, or leave rehearse |
@@ -313,6 +318,31 @@ is easier on a trackpad in a dark room.
 
 ---
 
+## Getting out of something that is on the screen
+
+Whenever anything is on the wall — a deck, a photo, a clip — the controls in the bottom
+right **stop fading out** and a **Take off air** button appears among them. Press `X`, or
+click it. `B` still blacks the screen out, and `E` still opens the editor.
+
+This matters most with a PDF. Chrome hands the keyboard to its own PDF viewer the moment
+that viewer is clicked, and gives no sign it has done so — every key you press after that
+goes to the PDF instead of to the board, so `E` and `B` quietly stop working. The board
+notices and takes the keyboard back, so the keys keep working; the mouse wheel still scrolls
+the PDF, because scrolling follows the pointer rather than the keyboard.
+
+If you ever do feel stuck: the controls are always live in the bottom right, and closing the
+tab and reopening the file loses nothing.
+
+### Reopening the file
+
+Refresh mid-talk and whatever was on the wall stays there — the second screen never blinks.
+Open the file again more than **half an hour** later and it comes up clean instead, on the
+assumption that this is a new sitting rather than a reload, and clears the second screen with
+it. So a deck left up at the end of one night is not waiting on the wall at the start of the
+next.
+
+---
+
 ## Setting up a night in advance
 
 Press `E`, or move the mouse and click **Edit tonight**. Four tabs:
@@ -480,7 +510,7 @@ npm run test:fast    # the two pure-node suites, about a second
 npm test -- qr sched # only suites whose name contains one of these
 ```
 
-438 checks across 19 suites. Two run in plain node — the QR encoder against a reference
+454 checks across 20 suites. Two run in plain node — the QR encoder against a reference
 implementation, and the schedule maths. The rest drive **the real Google Chrome installed on
 this machine**, not a bundled Chromium, because Chrome is what runs the board on the night;
 `playwright-core` is the dependency precisely so nothing downloads a browser. Chrome has to
