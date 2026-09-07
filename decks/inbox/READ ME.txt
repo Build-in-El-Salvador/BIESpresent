@@ -1,0 +1,10 @@
+Drop presentation files in this folder, then double-click "Convert Decks.command"
+one level up.
+
+Works with:   .pptx   .ppt   .key   .odp   .pdf
+
+Google Slides is a link, not a file — open it and use
+File > Download > PDF Document, then drop that PDF in here.
+
+Everything comes out in ../ready, one folder per deck, holding a PDF and a
+numbered set of slide images. Open the PDF and look at it before the night.

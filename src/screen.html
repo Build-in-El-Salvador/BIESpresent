@@ -1,0 +1,4129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BIESpresent</title>
+<style>
+/* ── Fonts (base64-inlined by build.py — no network at the venue) ───────── */
+{{FONT_FACES}}
+
+/* ── Brand tokens ────────────────────────────────────────────────────────
+   Values taken from /Users/mike/Desktop/BIES/src/index.css and the brandkit
+   SVG fills. NOT from the styleguide PDF, whose hex labels are leftover
+   template placeholders (it still names "Domaine Display" / "Melograno").  */
+:root{
+  --navy:#0A192F;
+  --navy-lift:#122543;
+  --cobalt:#0047AB;
+  --cobalt-deep:#003682;
+  --orange:#FF5B00;
+  --snow:#F9F5F4;
+
+  /* The display face is aliased, not named: build.py points it at PP Formula
+     Narrow Bold for the BIES build and at Barlow Condensed Bold for the one
+     published here. Nothing downstream needs to know which it got. */
+  --font-display:'BIES Display','Inter',system-ui,sans-serif;
+  --font-sans:'Inter',system-ui,-apple-system,sans-serif;
+
+  /* Projectors and hotel TVs crop the edges. Nothing critical in the outer 3%. */
+  --safe-x:4vw;
+  --safe-y:3.5vh;
+
+  --dim:rgba(249,245,244,.42);
+  --hair:rgba(249,245,244,.13);
+  --row-scale:1;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{height:100%;overflow:hidden}
+
+body{
+  background:var(--navy);
+  color:var(--snow);
+  font-family:var(--font-sans);
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum" 1;
+  cursor:none;
+}
+body.show-cursor{cursor:default}
+
+/* Slow drift keeps pixels moving — a static board for 3 hours marks an OLED. */
+#drift{
+  position:fixed; inset:-25%;
+  background:
+    radial-gradient(46% 40% at 22% 26%, rgba(0,71,171,.36), transparent 68%),
+    radial-gradient(38% 34% at 80% 74%, rgba(255,91,0,.13), transparent 68%);
+  animation:drift 96s ease-in-out infinite alternate;
+  pointer-events:none; z-index:0;
+}
+@keyframes drift{
+  0%  {transform:translate3d(-2.2%,-1.6%,0) scale(1)}
+  50% {transform:translate3d(1.8%,2.4%,0)   scale(1.07)}
+  100%{transform:translate3d(2.6%,-2.2%,0)  scale(1.03)}
+}
+@media (prefers-reduced-motion:reduce){#drift{animation:none}}
+
+#stage{
+  position:relative; z-index:1;
+  height:100%;
+  display:grid;
+  grid-template-rows:auto auto 1fr;
+  padding:var(--safe-y) var(--safe-x);
+  gap:1.6vh;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+#head{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:2vw; padding-bottom:1.2vh; border-bottom:1px solid var(--hair);
+}
+#head .logo svg{height:5.4vh;width:auto;display:block;color:var(--snow)}
+#head .ident{
+  margin-top:.9vh; font-size:1.12vw; font-weight:600;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--dim);
+}
+#head .right{
+  display:flex; align-items:baseline; gap:.85vw;
+  line-height:1; padding-top:.5vh;
+}
+#datum{font-size:1.15vw;font-weight:500;letter-spacing:.02em;color:var(--dim)}
+#clock{font-family:var(--font-sans);font-size:1.15vw;font-weight:600;letter-spacing:.02em}
+#clock .mer{margin-left:.3em}
+
+/* ── Hero: NOW | NEXT + countdown ─────────────────────────────────────── */
+#hero{
+  display:grid; grid-template-columns:1fr 1.05fr;
+  gap:2.4vw; align-items:stretch;
+  padding:1.2vh 0 1.4vh;
+  border-bottom:1px solid var(--hair);
+  min-height:28vh;
+}
+.slot{display:flex;flex-direction:column;justify-content:center;min-width:0}
+.slot.next{
+  border-left:1px solid var(--hair);
+  padding-left:2.4vw;
+  align-items:flex-end; text-align:right;
+}
+.kicker{
+  font-size:1.12vw; font-weight:600; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--orange); margin-bottom:1.1vh;
+}
+.slot.next .kicker{color:var(--dim)}
+.title-now{
+  font-family:var(--font-display); font-size:4.5vw; line-height:1.03;
+  overflow-wrap:break-word; hyphens:auto;
+}
+.title-next{
+  font-family:var(--font-display); font-size:2.6vw; line-height:1.06;
+  color:var(--snow); overflow-wrap:break-word; margin-bottom:1.4vh;
+}
+.note-now{
+  margin-top:1.2vh; font-size:1.25vw; color:var(--dim); line-height:1.35;
+  max-width:34ch;
+}
+
+#count{
+  font-family:var(--font-display); font-size:9.8vw; line-height:.92;
+  letter-spacing:-.012em;
+  transition:color .5s ease;
+}
+#count.warn{color:var(--orange)}
+#count.over{color:var(--orange)}
+#countsub{
+  margin-top:.7vh; font-size:1.25vw; font-weight:600;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--dim);
+}
+#count.over + #countsub{color:var(--orange)}
+
+/* ── Rotating panel ──────────────────────────────────────────────────── */
+#panelwrap{position:relative;min-height:0;overflow:hidden;padding-bottom:2.9vh}
+.panel{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  opacity:0; visibility:hidden;
+  transition:opacity .5s ease;
+}
+.panel.live{opacity:1;visibility:visible}
+.panel-head{
+  display:flex;align-items:baseline;gap:1vw;
+  font-size:1.12vw; font-weight:600; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--dim);
+  padding:1vh 0 .9vh;
+}
+.panel-body{flex:1;min-height:0;display:flex;flex-direction:column}
+
+/* Itinerary */
+#itin{display:flex;flex-direction:column;justify-content:space-evenly;height:100%;gap:0}
+.row{
+  display:grid; grid-template-columns:8.5vw 1fr;
+  align-items:baseline; gap:1.6vw;
+  padding:.35vh .6vw; border-radius:.5vw;
+  transition:background .4s ease,opacity .4s ease;
+}
+.row .t{
+  font-family:var(--font-display);
+  font-size:calc(1.85vw * var(--row-scale));
+  color:var(--dim); white-space:nowrap;
+}
+.row .n{
+  font-family:var(--font-display);
+  font-size:calc(1.95vw * var(--row-scale));
+  line-height:1.12; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.row .d{
+  font-family:var(--font-sans);
+  font-size:calc(.95vw * var(--row-scale)); font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--dim);
+  margin-left:1vw;
+}
+/* Done, not cancelled — a strikethrough reads as "this got dropped" */
+.row.past{opacity:.36}
+.row.now{background:rgba(255,91,0,.13);box-shadow:inset .28vw 0 0 var(--orange)}
+.row.now .t,.row.now .n{color:var(--orange)}
+.row.now .d{color:var(--orange)}
+
+/* Upcoming events */
+#upnext{display:flex;flex-direction:column;justify-content:space-evenly;height:100%}
+.ev{
+  display:grid; grid-template-columns:11vw 1fr auto;
+  align-items:baseline; gap:1.6vw; padding:.7vh .6vw;
+}
+.ev .when{
+  font-family:var(--font-display); font-size:1.85vw; color:var(--orange);
+  white-space:nowrap;
+}
+.ev .what{font-family:var(--font-display);font-size:1.95vw;line-height:1.12}
+.ev .meta{font-size:1.05vw;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+
+/* QR */
+#qr{align-items:center;justify-content:center;flex-direction:row;gap:4vw}
+#qrbox{
+  background:var(--snow); padding:1.4vw; border-radius:1vw;
+  display:flex; flex-shrink:0;
+}
+#qrbox svg,#qrbox img{display:block;width:26vh;height:26vh;object-fit:contain}
+#qrtext{max-width:36vw}
+#qrtitle{font-family:var(--font-display);font-size:3.4vw;line-height:1.05}
+#qrcap{margin-top:1.4vh;font-size:1.5vw;color:var(--dim);line-height:1.4}
+#qrurl{
+  margin-top:1.8vh;font-size:1.15vw;font-weight:600;color:var(--orange);
+  letter-spacing:.06em;word-break:break-all;
+}
+
+/* Sponsors */
+#sponsors{position:relative;height:100%;width:100%}
+.sp{
+  position:absolute; transform:translate(-50%,-50%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.2vh;
+}
+.sp .plate{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+.sp img{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain}
+.spname{
+  font-size:1.15vw;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim);text-align:center;flex:none;
+}
+
+/* ── Break takeover ──────────────────────────────────────────────────── */
+#breakview{
+  position:fixed; inset:0; z-index:20;
+  background:var(--navy);
+  display:none; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:var(--safe-y) var(--safe-x); text-align:center;
+}
+#breakview.live{display:flex}
+#breakview .kicker{
+  color:var(--orange); font-size:1.8vw; letter-spacing:.32em; margin-bottom:1vh;
+}
+#breaktitle{font-family:var(--font-display);font-size:5.4vw;line-height:1;margin-bottom:3.2vh}
+#breakcount{
+  font-family:var(--font-display); font-size:19vw; line-height:.88;
+  letter-spacing:-.02em;
+}
+/* Even on the break takeover the room must still be able to read the time */
+#breakclock{
+  position:absolute; top:var(--safe-y); right:var(--safe-x);
+  font-family:var(--font-display); font-size:3vw; color:var(--dim); line-height:1;
+}
+#breakcount.warn,#breakcount.over{color:var(--orange)}
+#breaksub{
+  margin-top:1.6vh; font-size:1.9vw; font-weight:600;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--dim);
+}
+#breakview .mark{position:absolute;bottom:var(--safe-y);opacity:.5}
+#breakview .mark svg{height:5vh;width:auto;color:var(--snow)}
+
+/* ── On air ──────────────────────────────────────────────────────────────
+   A deck, a photo or a video taking the whole screen. It sits above the break
+   takeover — a speaker's slides beat a break timer — but below blackout, so
+   `B` is still the one key that clears the wall no matter what is playing. */
+#airview{
+  position:fixed; inset:0; z-index:25; display:none; background:#000;
+}
+#airview.live{display:block}
+#airstage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#airstage img,#airstage video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+#airstage embed{width:100%;height:100%;border:0}
+#airslug{
+  position:absolute; left:0; right:0; bottom:0; z-index:2;
+  display:none; align-items:baseline; gap:1.6vw;
+  padding:2.6vh var(--safe-x) 1.8vh;
+  background:linear-gradient(to top,rgba(10,25,47,.94) 30%,rgba(10,25,47,0));
+  pointer-events:none;
+}
+#airslug.on{display:flex}
+#airslug .k{
+  font-size:1vw; font-weight:600; letter-spacing:.24em; text-transform:uppercase;
+  color:var(--orange); flex:none;
+}
+#airslug .t{font-family:var(--font-display);font-size:2.4vw;line-height:1;color:var(--snow)}
+#airslug .c{
+  margin-left:auto; font-family:var(--font-display); font-size:3.2vw; line-height:1;
+  color:var(--snow); white-space:nowrap;
+}
+#airslug .c.warn,#airslug .c.over{color:var(--orange)}
+
+/* ── Blackout ────────────────────────────────────────────────────────── */
+#blackout{
+  position:fixed; inset:0; z-index:30; background:var(--navy);
+  display:none; align-items:center; justify-content:center;
+}
+#blackout.live{display:flex}
+#blackout svg{height:22vh;width:auto;color:var(--snow);opacity:.72}
+#blackout .t{
+  position:absolute;bottom:var(--safe-y);
+  font-family:var(--font-display);font-size:2vw;color:var(--dim);
+}
+
+/* ── Status chips (bottom-left, deliberately small) ──────────────────── */
+#chips{
+  position:fixed; left:var(--safe-x); bottom:1vh; z-index:15;
+  display:flex; gap:.6vw; align-items:center;
+  font-size:.78vw; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+}
+.chip{
+  padding:.35vh .6vw; border-radius:1vw;
+  border:1px solid var(--hair); color:var(--dim);
+}
+.chip.hot{border-color:var(--orange);color:var(--orange)}
+.chip.hide{display:none}
+
+/* ── On-screen controls ──────────────────────────────────────────────────
+   Hidden from the room by default; they fade in whenever the mouse moves,
+   and sit above the blackout and break layers so they are always reachable. */
+#controls{
+  position:fixed; right:var(--safe-x); bottom:1vh; z-index:35;
+  display:flex; gap:.6vw; align-items:center;
+  opacity:0; pointer-events:none; transition:opacity .35s ease;
+}
+body.show-cursor #controls{opacity:1;pointer-events:auto}
+.ctl{
+  appearance:none; font-family:var(--font-sans);
+  font-size:.85vw; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--snow); background:rgba(249,245,244,.1);
+  border:1px solid rgba(249,245,244,.28); border-radius:2vw;
+  padding:.62vh 1.25vw; cursor:pointer; white-space:nowrap;
+  transition:background .18s ease,border-color .18s ease,color .18s ease;
+}
+.ctl:hover{background:var(--orange);border-color:var(--orange);color:var(--navy)}
+.ctl.primary{background:rgba(255,91,0,.2);border-color:var(--orange);color:var(--orange)}
+.ctl.primary:hover{background:var(--orange);color:var(--navy)}
+
+/* The audience screen carries none of the operator's furniture */
+body.audience #controls,
+body.audience #chips{display:none}
+
+#fshint{
+  position:fixed; left:50%; bottom:4vh; transform:translateX(-50%); z-index:36;
+  display:none; padding:1vh 2vw; border-radius:2vw;
+  background:rgba(249,245,244,.1); border:1px solid var(--hair);
+  font-size:1vw; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--dim);
+}
+body.audience.not-full #fshint{display:block}
+
+/* ── Help overlay ────────────────────────────────────────────────────── */
+#help{
+  position:fixed; inset:0; z-index:40; display:none;
+  background:rgba(10,25,47,.94);
+  align-items:center; justify-content:center; padding:6vh 6vw;
+}
+#help.live{display:flex}
+#help .card{max-width:60vw}
+#help h2{
+  font-family:var(--font-display); font-size:2.6vw; margin-bottom:2.4vh;
+  color:var(--orange);
+}
+#help dl{display:grid;grid-template-columns:auto 1fr;gap:1.4vh 2vw;font-size:1.25vw}
+#help dt{
+  font-family:var(--font-display); color:var(--snow); white-space:nowrap;
+  border:1px solid var(--hair); border-radius:.35vw;
+  padding:.2vh .7vw; justify-self:start;
+}
+#help dd{color:var(--dim);align-self:center}
+
+/* ── Setup screen ────────────────────────────────────────────────────── */
+#setup{
+  position:fixed; inset:0; z-index:50; display:none;
+  background:var(--navy); overflow-y:auto; cursor:default;
+  font-size:16px;
+}
+#setup.live{display:block}
+#setup .sheet{max-width:1000px;margin:0 auto;padding:40px 32px 128px}
+#setup .top{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:24px;margin-bottom:8px;
+}
+#setup .top svg{height:44px;width:auto;color:var(--snow)}
+#setup h1{font-family:var(--font-display);font-size:34px;margin:24px 0 4px}
+#setup .lede{color:var(--dim);font-size:15px;line-height:1.5;margin-bottom:28px;max-width:62ch}
+#tabs{display:flex;gap:8px;border-bottom:1px solid var(--hair);margin-bottom:28px}
+.tab{
+  appearance:none;background:none;border:0;border-bottom:2px solid transparent;
+  color:var(--dim); font-family:var(--font-sans); font-size:14px; font-weight:600;
+  letter-spacing:.12em; text-transform:uppercase;
+  padding:12px 14px; cursor:pointer;
+}
+.tab:hover{color:var(--snow)}
+.tab.on{color:var(--orange);border-bottom-color:var(--orange)}
+.pane{display:none}
+.pane.on{display:block}
+
+/* While the night is running, the editor keeps showing what is on screen */
+#livestrip{
+  display:none; align-items:center; gap:14px;
+  background:rgba(255,91,0,.1); border:1px solid rgba(255,91,0,.36);
+  border-radius:8px; padding:13px 18px; margin-bottom:26px;
+}
+#livestrip.on{display:flex}
+#livestrip .dot{
+  width:9px;height:9px;border-radius:50%;background:var(--orange);flex:none;
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){#livestrip .dot{animation:none}}
+#livenow{font-size:14px;color:var(--snow);line-height:1.4}
+#livenow b{font-family:var(--font-display);font-weight:700}
+#livecd{
+  margin-left:auto; font-family:var(--font-display); font-size:23px;
+  color:var(--orange); white-space:nowrap;
+}
+
+#setup label{display:block;font-size:12px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+/* A label used as a file-picker button must still look like the buttons beside
+   it — `#setup label` outranks `.btn` on specificity and was flattening them. */
+#setup label.btn{
+  display:inline-block; font-size:14px; letter-spacing:.08em;
+  text-transform:none; color:var(--snow); margin-bottom:0;
+}
+#setup input[type=text],#setup input[type=date],#setup input[type=time],
+#setup input[type=number],#setup input[type=url],#setup textarea{
+  width:100%; background:var(--navy-lift); color:var(--snow);
+  border:1px solid var(--hair); border-radius:6px;
+  font-family:var(--font-sans); font-size:15px; padding:10px 12px;
+}
+#setup input:focus,#setup textarea:focus{outline:2px solid var(--cobalt);outline-offset:1px}
+#setup textarea{min-height:84px;resize:vertical;line-height:1.5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
+.grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:18px;margin-bottom:20px}
+.field{margin-bottom:20px}
+
+/* ── Arrange stage ────────────────────────────────────────────────────── */
+#arrange{
+  position:fixed; inset:0; z-index:70; display:none;
+  background:#060F1C; overflow-y:auto; cursor:default; font-size:16px;
+  padding:26px 24px 40px;
+}
+#arrange.on{display:block}
+#arrange .wrap{max-width:1180px;margin:0 auto}
+#arrange .arhead{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+#arrange h2{font-family:var(--font-display);font-size:26px;margin-bottom:6px}
+#arrange .arhead p{font-size:14px;color:var(--dim);line-height:1.5;max-width:62ch}
+
+#arstage{
+  position:relative; width:100%; aspect-ratio:16/9; margin:20px 0 16px;
+  background:var(--navy); border:1px solid var(--hair); border-radius:10px;
+  overflow:hidden; display:flex; flex-direction:column;
+  padding:3.5% 4%;
+}
+.archrome{color:rgba(249,245,244,.28);pointer-events:none;flex:none}
+.artop{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:13px;padding-bottom:1.2%;border-bottom:1px solid rgba(249,245,244,.1);
+}
+.artop .armark{font-family:var(--font-display);color:rgba(249,245,244,.4)}
+.arhero{
+  height:31%;display:flex;align-items:center;justify-content:flex-end;
+  font-size:13px;letter-spacing:.18em;text-transform:uppercase;
+  border-bottom:1px solid rgba(249,245,244,.1);
+}
+#arpanel{flex:1;min-height:0;display:flex;flex-direction:column;padding-top:1.4%}
+.arlabel{
+  font-size:12px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+  color:rgba(249,245,244,.28);padding-bottom:1%;flex:none;pointer-events:none;
+}
+#arfield{position:relative;flex:1;min-height:0}
+
+.ar{
+  position:absolute; transform:translate(-50%,-50%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  cursor:grab; border:1px dashed transparent; border-radius:6px; touch-action:none;
+}
+.ar:hover{border-color:rgba(249,245,244,.3)}
+.ar.sel{border-color:var(--orange);border-style:solid;z-index:5}
+.ar:hover{z-index:4}
+.ar.drag{cursor:grabbing}
+.ar .plate{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+.ar img{width:100%;height:100%;object-fit:contain;pointer-events:none}
+.ar .cap{
+  font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim);flex:none;pointer-events:none;
+}
+.ar .grip{
+  position:absolute; right:-7px; bottom:-7px; width:15px; height:15px;
+  border-radius:50%; background:var(--orange); border:2px solid var(--navy);
+  cursor:nwse-resize; display:none;
+}
+.ar.sel .grip{display:block}
+
+.arbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#arhint{color:var(--dim)}
+
+#pastewrap{
+  border:1px solid var(--hair); border-radius:8px;
+  padding:0 18px; margin-bottom:26px; background:var(--navy-lift);
+}
+#pastewrap[open]{padding-bottom:18px}
+#pastewrap summary{
+  cursor:pointer; padding:14px 0; font-size:13px; font-weight:600;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--dim);
+  display:flex; align-items:center; gap:10px;
+}
+#pastewrap summary:hover{color:var(--snow)}
+#pastewrap[open] summary{color:var(--orange)}
+#pastewrap .opt{
+  font-size:10px; letter-spacing:.14em; color:var(--dim);
+  border:1px solid var(--hair); border-radius:10px; padding:2px 8px;
+}
+#pastebox{min-height:132px;font-family:var(--font-mono);font-size:13px}
+
+#seglist{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.segrow{
+  display:grid; grid-template-columns:26px 74px 1fr 84px 92px 30px 30px;
+  gap:10px; align-items:center;
+  background:var(--navy-lift); border:1px solid var(--hair);
+  border-radius:8px; padding:8px 10px;
+}
+.segrow .hnd{cursor:grab;color:var(--dim);text-align:center;font-size:15px;
+  user-select:none;line-height:1;letter-spacing:2px}
+.segrow.drag{opacity:.4}
+#setup .segrow .ttl{display:flex;flex-direction:column;gap:5px;min-width:0}
+#setup .segrow .ttl input[data-f="note"]{
+  font-size:12px; padding:6px 9px; color:var(--dim);
+  background:transparent; border-color:rgba(249,245,244,.1);
+}
+#setup .segrow .ttl input[data-f="note"]:focus{color:var(--snow)}
+#setup .segrow .clock{
+  font-family:var(--font-display); font-size:15px; color:var(--orange);
+  background:transparent; border:1px solid transparent; border-radius:5px;
+  padding:6px 4px; width:100%; cursor:pointer; text-align:left;
+  white-space:nowrap;
+}
+#setup .segrow .clock:hover{border-color:var(--hair);background:rgba(249,245,244,.06)}
+#setup .segrow .clock.open{border-color:var(--orange);background:rgba(255,91,0,.12)}
+#setup .segrow .clock:focus-visible{outline:2px solid var(--cobalt);outline-offset:1px}
+
+/* Scrollable hour / minute / meridiem columns */
+#timepop{
+  position:fixed; z-index:60; display:none;
+  background:var(--navy-lift); border:1px solid var(--hair);
+  border-radius:10px; box-shadow:0 18px 46px rgba(0,0,0,.55);
+  padding:8px; gap:4px;
+}
+#timepop.on{display:flex}
+#timepop .col{
+  height:196px; overflow-y:auto; scrollbar-width:thin;
+  scroll-behavior:smooth; padding:0 2px;
+}
+#timepop .col::-webkit-scrollbar{width:6px}
+#timepop .col::-webkit-scrollbar-thumb{background:rgba(249,245,244,.18);border-radius:3px}
+#timepop button{
+  display:block; width:100%; appearance:none; border:0; cursor:pointer;
+  background:none; color:var(--snow); border-radius:5px;
+  font-family:var(--font-display); font-size:15px;
+  padding:7px 12px; text-align:center; line-height:1;
+}
+#timepop button:hover{background:rgba(249,245,244,.1)}
+#timepop button.sel{background:var(--orange);color:var(--navy)}
+#timepop .lbl{
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+  text-align:center;padding:2px 0 6px;
+}
+#setup .segrow .brk{display:flex;align-items:center;gap:7px;font-size:12px;
+  color:var(--dim);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  white-space:nowrap;overflow:hidden;margin:0}
+.segrow input[type=checkbox]{accent-color:var(--orange);width:15px;height:15px;
+  cursor:pointer;margin:0;flex:0 0 auto}
+.segrow .del,.segrow .ins{
+  appearance:none;background:none;border:0;color:var(--dim);
+  font-size:19px;line-height:1;cursor:pointer;padding:2px 5px;border-radius:4px;
+}
+.segrow .del:hover,.segrow .ins:hover{color:var(--orange);background:rgba(255,91,0,.12)}
+
+.btn{
+  appearance:none;font-family:var(--font-sans);font-size:14px;font-weight:600;
+  letter-spacing:.08em; border-radius:6px; padding:11px 20px; cursor:pointer;
+  border:1px solid var(--hair); background:var(--navy-lift); color:var(--snow);
+}
+.btn:hover{border-color:var(--snow)}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:var(--navy)}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.ghost{background:none}
+.btnrow{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px}
+
+#setup .bar{
+  position:sticky; bottom:0; margin:36px -32px -128px;
+  padding:18px 32px; background:var(--navy);
+  border-top:1px solid var(--hair);
+  display:flex; gap:12px; align-items:center;
+}
+#setup .bar .spacer{flex:1}
+#setup .saved{
+  font-size:13px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--orange); opacity:0; transition:opacity .25s ease;
+}
+#setup .saved.on{opacity:1}
+#setup .hint{font-size:13px;color:var(--dim);line-height:1.5}
+#setup .warn{color:var(--orange)}
+#qrpick{margin-top:14px}
+#qrthumb{
+  display:none; background:var(--snow); border-radius:8px; padding:8px;
+  width:132px; height:132px; margin-bottom:14px;
+}
+#qrthumb.on{display:block}
+#qrthumb img,#qrthumb svg{display:block;width:100%;height:100%;object-fit:contain}
+
+.splist{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}
+.spitem{position:relative;width:168px}
+.spitem .plate{
+  background:var(--snow);border-radius:8px;padding:10px;height:84px;
+  display:flex;align-items:center;justify-content:center;
+}
+.spitem img{max-width:100%;max-height:100%;object-fit:contain}
+.spitem input[type=text]{margin-top:8px;font-size:13px;padding:7px 9px}
+#setup .spitem .shw{
+  display:flex;align-items:center;gap:7px;margin:7px 0 0;font-size:11px;
+  color:var(--dim);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
+}
+.spitem button{
+  position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;
+  border:0;background:var(--orange);color:var(--navy);font-size:15px;line-height:1;
+  cursor:pointer;font-weight:700;
+}
+#setup .sub{font-size:13px;color:var(--dim);margin:0 0 20px;line-height:1.5}
+#setup .grid2 + .sub,
+#setup .grid3 + .sub,
+#setup .field + .sub{margin-top:-12px}
+#setup .btnrow + .sub{margin-top:14px}
+#setup .splist + .btnrow{margin-bottom:4px}
+#setup h3{font-family:var(--font-display);font-size:20px;margin:32px 0 12px}
+#setup h3:first-child{margin-top:0}
+/* ── Show control ─────────────────────────────────────────────────────── */
+#setup .hide{display:none}
+.grow{flex:1}
+#setup label.tog{
+  display:inline-flex; align-items:center; gap:8px; margin-bottom:0;
+  font-size:13px; letter-spacing:0; text-transform:none; color:var(--snow);
+  cursor:pointer; white-space:nowrap;
+}
+#setup label.tog input{accent-color:var(--orange);width:15px;height:15px}
+
+/* What the room is looking at, on every tab — the one thing you must never
+   have to go and check. */
+#airbar{
+  display:none; align-items:center; gap:14px;
+  background:rgba(255,91,0,.13); border:1px solid var(--orange);
+  border-radius:8px; padding:12px 18px; margin-bottom:22px;
+}
+#airbar.on{display:flex}
+#airbar .dot{
+  width:9px;height:9px;border-radius:50%;background:var(--orange);flex:none;
+  animation:pulse 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion:reduce){#airbar .dot{animation:none}}
+#airwhat{font-size:14px;color:var(--snow);line-height:1.4}
+#airwhat b{font-family:var(--font-display);font-weight:700}
+#airbar .tog{margin-left:auto}
+
+/* Rows for decks, media and the music queue */
+.mrow{
+  display:flex; align-items:center; gap:12px;
+  background:var(--navy-lift); border:1px solid var(--hair);
+  border-radius:8px; padding:9px 12px; margin-bottom:8px;
+}
+.mrow.sel{border-color:var(--orange)}
+.mrow .hnd{
+  cursor:grab; color:var(--dim); font-size:15px; line-height:1; letter-spacing:2px;
+  user-select:none; flex:none; padding:0 1px; align-self:center;
+}
+.mrow .hnd:active{cursor:grabbing}
+.mrow.drag{opacity:.4}
+.mrow.over{border-color:var(--orange);box-shadow:inset 0 2px 0 var(--orange)}
+.mrow.live{border-color:var(--orange);background:rgba(255,91,0,.1)}
+.mrow .grab{cursor:pointer;flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.mrow .nm{font-size:14px;color:var(--snow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow .mt{font-size:12px;color:var(--dim)}
+.mrow .mt.warn{color:var(--orange)}
+.mrow .tag{
+  font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  border:1px solid var(--hair);border-radius:3px;padding:2px 6px;color:var(--dim);flex:none;
+}
+.mrow .tag.hot{border-color:var(--orange);color:var(--orange)}
+#setup .mrow select{
+  background:var(--navy);color:var(--snow);border:1px solid var(--hair);
+  border-radius:6px;font-family:var(--font-sans);font-size:13px;padding:7px 8px;
+  max-width:210px;flex:none;
+}
+.mrow .ic{
+  appearance:none;background:none;border:0;color:var(--dim);
+  font-size:15px;line-height:1;cursor:pointer;padding:5px 7px;border-radius:5px;flex:none;
+}
+.mrow .ic:hover{color:var(--orange);background:rgba(255,91,0,.12)}
+#setup .mrow input[type=text]{
+  flex:1; min-width:0; font-size:13px; padding:7px 9px; background:var(--navy);
+}
+#setup .mrow input.spk{flex:none;width:150px;color:var(--dim)}
+#setup .mrow input.spk:focus{color:var(--snow)}
+.mrow .shot{
+  width:56px;height:32px;flex:none;border-radius:4px;background:#000;
+  object-fit:cover;border:1px solid var(--hair);
+}
+
+/* ── Audio transport ─────────────────────────────────────────────────── */
+#deck{
+  border:1px solid var(--hair); border-radius:10px;
+  background:var(--navy-lift); padding:14px 16px 10px; margin:4px 0 16px;
+}
+.dtop{display:flex;align-items:center;gap:10px}
+.tbtn{
+  appearance:none; background:none; border:1px solid var(--hair); border-radius:50%;
+  width:34px; height:34px; flex:none; padding:0; cursor:pointer; color:var(--snow);
+  display:flex; align-items:center; justify-content:center;
+}
+.tbtn:hover{border-color:var(--snow)}
+.tbtn.big{width:44px;height:44px;background:var(--orange);border-color:var(--orange);color:var(--navy)}
+.tbtn.big:hover{filter:brightness(1.1)}
+.tbtn:disabled{opacity:.35;cursor:default}
+.tbtn:disabled:hover{border-color:var(--hair)}
+.tbtn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;
+  stroke-linejoin:round;stroke-linecap:round}
+.tbtn.big svg{width:20px;height:20px}
+/* The play triangle and the pause bars are filled shapes, not outlines — left
+   stroked, the two pause bars fatten into a single block. */
+.tbtn svg.solid path{fill:currentColor;stroke:none}
+.dnow{flex:1;min-width:0;padding-left:4px}
+#autitle{
+  font-family:var(--font-display); font-size:17px; color:var(--snow);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#ausub{font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dseek{display:flex;align-items:center;gap:11px;margin-top:9px}
+.tt{
+  font-family:var(--font-display); font-size:13px; color:var(--dim);
+  min-width:38px; flex:none;
+}
+.dseek .tt:last-child{text-align:right}
+#setup #deck input[type=range]{
+  appearance:none; -webkit-appearance:none; background:none;
+  height:16px; padding:0; border:0; cursor:pointer;
+}
+#setup #deck input[type=range]:focus{outline:2px solid var(--cobalt);outline-offset:2px}
+#setup #auseek{flex:1;min-width:0}
+#setup #auvol{width:96px;flex:none}
+#deck input[type=range]::-webkit-slider-runnable-track{
+  height:4px; border-radius:2px;
+  background:linear-gradient(to right,var(--orange) var(--fill,0%),rgba(249,245,244,.18) var(--fill,0%));
+}
+#deck input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:12px; height:12px; border-radius:50%;
+  background:var(--snow); margin-top:-4px;
+}
+#deck input[type=range]:disabled{opacity:.4;cursor:default}
+
+/* Preview stage — 16:9, the same shape as the wall */
+/* Kept well short of full width: the operator has to see the preview, the
+   transport under it and the list above it without scrolling between them. */
+.stagebox{
+  border:1px solid var(--hair); border-radius:10px; padding:12px;
+  margin:18px 0 0; max-width:660px;
+}
+.stagepic{
+  position:relative; width:100%; aspect-ratio:16/9; background:#000;
+  border-radius:6px; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+}
+.stagepic img,.stagepic video{width:100%;height:100%;object-fit:contain;display:block}
+.stagepic embed{width:100%;height:100%;border:0}
+.stagepic .empty{font-size:14px;color:var(--dim)}
+.stagebar{display:flex;align-items:center;gap:10px;margin-top:12px}
+.stagebar .pos{
+  font-family:var(--font-display);font-size:16px;color:var(--snow);
+  min-width:74px;text-align:center;
+}
+.thumbs{display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:4px}
+.thumbs:empty{display:none}
+.thumbs img{
+  height:52px;width:auto;border-radius:3px;border:2px solid transparent;
+  cursor:pointer;background:#000;flex:none;
+}
+.thumbs img.on{border-color:var(--orange)}
+
+#quota{font-size:13px;color:var(--dim);margin-top:10px}
+#quota.warn{color:var(--orange)}
+</style>
+</head>
+<body>
+<div id="drift"></div>
+
+<div id="stage">
+
+  <header id="head">
+    <div>
+      <div class="logo">{{LOGO_HORIZONTAL}}</div>
+      <div class="ident" id="ident">Social Night</div>
+    </div>
+    <div class="right">
+      <div id="datum">&mdash;</div>
+      <div id="clock">--:--<span class="mer">--</span></div>
+    </div>
+  </header>
+
+  <section id="hero">
+    <div class="slot now">
+      <div class="kicker">Now</div>
+      <div class="title-now" id="nowtitle">—</div>
+      <div class="note-now" id="nownote"></div>
+    </div>
+    <div class="slot next">
+      <div class="kicker" id="nextkicker">Up next</div>
+      <div class="title-next" id="nexttitle">—</div>
+      <div id="count">--:--</div>
+      <div id="countsub">—</div>
+    </div>
+  </section>
+
+  <div id="panelwrap">
+
+    <section class="panel" data-panel="itinerary">
+      <div class="panel-head"><span>Tonight</span></div>
+      <div class="panel-body"><div id="itin"></div></div>
+    </section>
+
+    <section class="panel" data-panel="upcoming">
+      <div class="panel-head"><span>What's coming up</span></div>
+      <div class="panel-body"><div id="upnext"></div></div>
+    </section>
+
+    <section class="panel" data-panel="qr">
+      <div class="panel-head"><span id="qrhead">Join us</span></div>
+      <div class="panel-body" id="qr">
+        <div id="qrbox"></div>
+        <div id="qrtext">
+          <div id="qrtitle"></div>
+          <div id="qrcap"></div>
+          <div id="qrurl"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="sponsors">
+      <div class="panel-head"><span id="sphead">Thanks to our partners</span></div>
+      <div class="panel-body"><div id="sponsors"></div></div>
+    </section>
+
+  </div>
+</div>
+
+<!-- Break takes the whole screen: this is the moment the timer matters most -->
+<div id="breakview">
+  <div id="breakclock"></div>
+  <div class="kicker">Break</div>
+  <div id="breaktitle">Back in</div>
+  <div id="breakcount">--:--</div>
+  <div id="breaksub">—</div>
+  <div class="mark">{{LOGO_ICON}}</div>
+</div>
+
+<!-- Whatever the tech has put on the wall: slides, a photo, a clip -->
+<div id="airview">
+  <div id="airstage"></div>
+  <div id="airslug">
+    <span class="k" id="airslugk">Up next</span>
+    <span class="t" id="airslugt"></span>
+    <span class="c" id="airslugc"></span>
+  </div>
+</div>
+
+<div id="blackout">
+  {{LOGO_ICON}}
+  <div class="t" id="blackclock"></div>
+</div>
+
+<div id="chips">
+  <span class="chip hot hide" id="chipmode">Manual</span>
+  <span class="chip hide" id="chippause">Paused</span>
+  <span class="chip hot hide" id="chiprehearse">Rehearsing</span>
+  <span class="chip hot hide" id="chiplate">—</span>
+  <span class="chip hot hide" id="chipsecond">2nd screen live</span>
+</div>
+
+<div id="controls">
+  <button class="ctl" id="keysbtn" title="Show the operator keys (?)">Keys</button>
+  <button class="ctl" id="secondbtn" title="Send the audience view to the other display (S)">Second screen</button>
+  <button class="ctl" id="fsbtn" title="Fullscreen (F)">Fullscreen</button>
+  <button class="ctl primary" id="editbtn" title="Edit tonight (E)">Edit tonight</button>
+</div>
+
+<div id="fshint">Click anywhere for fullscreen</div>
+
+<div id="help">
+  <div class="card">
+    <h2>Operator keys</h2>
+    <dl>
+      <dt>F</dt>            <dd>Fullscreen</dd>
+      <dt>&rarr; / N</dt>   <dd>Start the next segment now</dd>
+      <dt>&larr;</dt>       <dd>Go back one segment</dd>
+      <dt>+ / &minus;</dt>  <dd>Push the rest of the night later / earlier by 5 min</dd>
+      <dt>Shift + / &minus;</dt><dd>Same, by 1 min</dd>
+      <dt>A</dt>            <dd>Auto-advance on / off (off = it waits for you, and shows overrun)</dd>
+      <dt>Space</dt>        <dd>Pause / resume the schedule clock</dd>
+      <dt>1 &hellip; 4</dt> <dd>Hold one panel (tonight / upcoming / QR / partners)</dd>
+      <dt>R</dt>            <dd>Resume panel rotation</dd>
+      <dt>B</dt>            <dd>Blackout — clean screen for the projector</dd>
+      <dt>E</dt>            <dd>Edit tonight's schedule</dd>
+      <dt>S</dt>            <dd>Send the audience view to the second screen</dd>
+      <dt>Page &#8595; &#8593;</dt> <dd>Next / previous slide of the deck on the wall
+                            &mdash; what a presenter's clicker sends</dd>
+      <dt>D</dt>            <dd>Rehearse — replay the whole night in about a minute</dd>
+      <dt>Esc</dt>          <dd>Close this / leave rehearse</dd>
+    </dl>
+  </div>
+</div>
+
+<div id="arrange">
+  <div class="wrap">
+    <div class="arhead">
+      <div>
+        <h2>Arrange the partner panel</h2>
+        <p>Drag a logo to move it, drag its corner to resize. This frame is the screen,
+          to scale &mdash; what you see is what the room gets.</p>
+      </div>
+      <button class="btn primary" id="ardone">Done</button>
+    </div>
+
+    <div id="arstage">
+      <div class="archrome artop">
+        <span class="armark">BIES &middot; Build in El Salvador</span>
+        <span>Sun 6 Sep &nbsp;7:42 PM</span>
+      </div>
+      <div class="archrome arhero">
+        <span>Now &middot; Up next &middot; countdown</span>
+      </div>
+      <div id="arpanel">
+        <div class="arlabel">Thanks to our partners</div>
+        <div id="arfield"></div>
+      </div>
+    </div>
+
+    <div class="arbar">
+      <button class="btn" id="arauto">Auto-arrange</button>
+      <button class="btn" id="arsmaller">Smaller</button>
+      <button class="btn" id="arbigger">Bigger</button>
+      <span class="hint" id="arhint">Select a logo to resize it.</span>
+    </div>
+  </div>
+</div>
+
+<div id="timepop">
+  <div><div class="lbl">Hr</div><div class="col" data-part="h"></div></div>
+  <div><div class="lbl">Min</div><div class="col" data-part="m"></div></div>
+  <div><div class="lbl">&nbsp;</div><div class="col" data-part="ap"></div></div>
+</div>
+
+<div id="setup">
+ <div class="sheet">
+  <div class="top">{{LOGO_HORIZONTAL}}</div>
+  <h1>Set up tonight</h1>
+  <p class="lede">
+    Set this up before doors open, then start the night. You can come back any time while
+    the event is running &mdash; press <strong>E</strong>, or move the mouse and click
+    <strong>Edit tonight</strong> &mdash; and changes reach the screen straight away.
+    Everything is saved in this browser, so a refresh loses nothing. Nothing the room sees
+    ever needs the internet &mdash; the only thing here that reaches out is looking up the
+    name of a YouTube track, and only if you paste one in.
+  </p>
+  <p class="sub warn" id="storewarn" style="margin-top:-18px"></p>
+
+  <div id="livestrip">
+    <span class="dot"></span>
+    <span id="livenow"></span>
+    <span id="livecd"></span>
+  </div>
+
+  <div id="airbar">
+    <span class="dot"></span>
+    <span id="airwhat">—</span>
+    <label class="tog"><input type="checkbox" id="airoverlay"> Overlay next segment</label>
+    <button class="btn" id="airoff">Take off air</button>
+  </div>
+
+  <div id="tabs">
+    <button class="tab on" data-tab="event">Event</button>
+    <button class="tab" data-tab="segments">Schedule</button>
+    <button class="tab" data-tab="panels">Screen panels</button>
+    <button class="tab" data-tab="decks">Presentations</button>
+    <button class="tab" data-tab="media">Media</button>
+    <button class="tab" data-tab="music">Music</button>
+    <button class="tab" data-tab="data">Save &amp; share</button>
+  </div>
+
+  <!-- Event -->
+  <div class="pane on" data-pane="event">
+    <div class="grid2">
+      <div><label for="f-name">Event name</label>
+        <input type="text" id="f-name" placeholder="Social Night"></div>
+      <div><label for="f-code">Event code</label>
+        <input type="text" id="f-code" placeholder="SN20260902">
+      </div>
+    </div>
+    <p class="sub">Code convention from the ops schedule: prefix + YYYYMMDD.
+      SN social night &middot; NN networking night &middot; MK market &middot;
+      MM mastermind &middot; EX excursion &middot; PG program.</p>
+    <div class="grid2">
+      <div><label for="f-date">Date</label><input type="date" id="f-date"></div>
+      <div><label for="f-start">Doors / first segment starts</label>
+        <input type="time" id="f-start"></div>
+    </div>
+    <p class="sub warn" id="clockwarn"></p>
+  </div>
+
+  <!-- Segments -->
+  <div class="pane" data-pane="segments">
+    <details id="pastewrap">
+      <summary>Paste an itinerary instead of typing it <span class="opt">optional</span></summary>
+      <p class="sub">A shortcut for starting a night, not a replacement for the list below
+        &mdash; everything stays editable by hand afterwards. Copy the run of show out of
+        Notion, a Google Doc or a spreadsheet and drop it in, one segment per line. It reads
+        clock times, time ranges, <code>title | minutes</code>, table rows, bullets and
+        numbered lists. Durations come from the gaps between times unless a range or an
+        explicit length says otherwise.</p>
+      <textarea id="pastebox" placeholder="6:30 PM - 7:00 PM   Doors open&#10;7:00 PM   Refreshments &amp; mingling&#10;7:30 PM   Welcome - MC opens&#10;&#10;...or...&#10;&#10;Doors open | 30&#10;Welcome, 10&#10;Coffee break | 15"></textarea>
+      <div class="btnrow">
+        <button class="btn primary" id="parsebtn">Read it</button>
+        <span class="hint" id="parsenote"></span>
+      </div>
+    </details>
+
+    <p class="sub" style="margin-top:0">
+      Times are worked out from the start time and each segment's length, so changing one
+      length moves everything after it. Drag the handle to reorder.
+    </p>
+    <div id="seglist"></div>
+    <div class="btnrow">
+      <button class="btn" id="addseg">+ Add segment</button>
+      <button class="btn ghost" id="loadsn">Load the standard social night</button>
+    </div>
+    <p class="hint" style="margin-top:16px">Ends at <strong id="endsat">&mdash;</strong></p>
+
+
+  </div>
+
+  <!-- Panels -->
+  <div class="pane" data-pane="panels">
+    <h3>QR panel</h3>
+    <div class="grid2">
+      <div><label for="f-qrtitle">Heading</label>
+        <input type="text" id="f-qrtitle" placeholder="Join the community"></div>
+      <div><label for="f-qrurl">Link</label>
+        <input type="url" id="f-qrurl" placeholder="https://..."></div>
+    </div>
+    <div class="field"><label for="f-qrcap">Caption</label>
+      <input type="text" id="f-qrcap" placeholder="Scan to join the BIES WhatsApp group"></div>
+    <p class="sub">The code is generated on this machine, so it works with the venue wifi
+      down. Leave both the link and the image empty to hide this panel.</p>
+
+    <h3>Or use your own QR image</h3>
+    <p class="sub" style="margin-top:0">Upload a PNG, JPG or SVG and it replaces the
+      generated code. Keep the link filled in anyway if you want the address printed under
+      the caption. SVG stays sharp at any size; a bitmap should be at least 600&times;600.</p>
+    <div id="qrpick">
+      <div id="qrthumb"></div>
+      <div class="btnrow">
+        <label class="btn" for="f-qrimg">Upload a QR image</label>
+        <input type="file" id="f-qrimg" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden>
+        <button class="btn ghost" id="qrclear">Back to the generated code</button>
+      </div>
+      <p class="hint" id="qrnote"></p>
+    </div>
+
+    <h3>Partners &amp; sponsors</h3>
+    <div class="splist" id="splist"></div>
+    <div class="btnrow">
+      <label class="btn" for="f-sponsor" style="display:inline-block">+ Add logo</label>
+      <input type="file" id="f-sponsor" accept="image/*" multiple hidden>
+      <button class="btn primary" id="arrangebtn">Arrange on screen</button>
+    </div>
+    <p class="sub">The name is used as the image's alt text either way. Tick
+      <strong>Show name</strong> only for logos that are a symbol with no wordmark &mdash;
+      captioning every logo makes the panel noisy. Logos are shrunk to fit the browser's
+      storage budget; pale or white ones read best on the dark screen.</p>
+    <p id="quota"></p>
+
+    <h3>What's coming up</h3>
+    <p class="sub" style="margin-top:0">One event per line:
+      <code>date | name | detail</code> &mdash; e.g.
+      <code>Sep 25 | Oriente Tour | 3 days</code>.
+      Ops codes are stripped automatically &mdash; they never go on the screen.</p>
+    <textarea id="f-upcoming"></textarea>
+
+    <h3>Rotation</h3>
+    <div class="grid2">
+      <div><label for="f-dwell1">Seconds on the itinerary</label>
+        <input type="number" id="f-dwell1" min="5" max="600"></div>
+      <div><label for="f-dwell2">Seconds on the other panels</label>
+        <input type="number" id="f-dwell2" min="5" max="600"></div>
+    </div>
+  </div>
+
+  <!-- Presentations -->
+  <div class="pane" data-pane="decks">
+    <h3>Speakers' decks</h3>
+    <p class="sub" style="margin-top:0">Load a deck as <strong>slide images</strong> and you
+      can drive it from here &mdash; next, back, jump to any slide, countdown overlaid.
+      Load it as a <strong>PDF</strong> and it goes up exactly as the speaker exported it,
+      but the pages have to be turned in the PDF viewer itself. Both come out of dropping
+      the original into <code>decks/inbox</code> and running <code>Convert Decks</code>.</p>
+
+    <div class="btnrow">
+      <label class="btn" for="f-slides">+ Slide images</label>
+      <input type="file" id="f-slides" accept="image/*" multiple hidden>
+      <label class="btn" for="f-deckpdf">+ PDF</label>
+      <input type="file" id="f-deckpdf" accept="application/pdf" multiple hidden>
+      <label class="btn ghost" for="f-deckraw">+ PowerPoint / Keynote</label>
+      <input type="file" id="f-deckraw" accept=".pptx,.ppt,.key,.odp" multiple hidden>
+    </div>
+    <p class="sub">Select every slide image of one deck together and they become that deck,
+      in filename order &mdash; which is why the converter numbers them. A
+      <code>.pptx</code> or <code>.key</code> is logged so it is not forgotten, but no
+      browser can display one: it sits here marked <strong>needs converting</strong>.</p>
+
+    <div id="decklist"></div>
+
+    <div class="stagebox" id="dkstage">
+      <div class="stagepic" id="dkpic"><span class="empty">Choose a deck to preview it</span></div>
+      <div class="stagebar">
+        <button class="btn ghost" id="dkprev" title="Previous slide">&#8592;</button>
+        <span class="pos" id="dkpos">&mdash;</span>
+        <button class="btn ghost" id="dknext" title="Next slide">&#8594;</button>
+        <span class="grow"></span>
+        <button class="btn primary" id="dksend">Send to screen</button>
+      </div>
+      <div class="thumbs" id="dkthumbs"></div>
+    </div>
+    <p class="sub">The preview is yours alone &mdash; nothing reaches the room until you
+      press <strong>Send to screen</strong>, so you can line up the next speaker's opening
+      slide while the current one is still talking.</p>
+  </div>
+
+  <!-- Media -->
+  <div class="pane" data-pane="media">
+    <h3>Photos &amp; video</h3>
+    <p class="sub" style="margin-top:0">Anything a speaker wants to cut to, plus the
+      photo reel for the mingling hour. Videos play with sound on whichever screen is
+      facing the room.</p>
+
+    <div class="btnrow">
+      <label class="btn" for="f-mediaimg">+ Photos</label>
+      <input type="file" id="f-mediaimg" accept="image/*" multiple hidden>
+      <label class="btn" for="f-mediavid">+ Video</label>
+      <input type="file" id="f-mediavid" accept="video/*" multiple hidden>
+    </div>
+
+    <div id="medialist"></div>
+
+    <div class="stagebox" id="mdstage">
+      <div class="stagepic" id="mdpic"><span class="empty">Choose a photo or clip</span></div>
+      <div class="stagebar">
+        <button class="btn ghost" id="mdprev" title="Previous">&#8592;</button>
+        <span class="pos" id="mdpos">&mdash;</span>
+        <button class="btn ghost" id="mdnext" title="Next">&#8594;</button>
+        <button class="btn ghost hide" id="mdplay">Play</button>
+        <button class="btn ghost hide" id="mdback">Restart</button>
+        <span class="grow"></span>
+        <button class="btn primary" id="mdsend">Send to screen</button>
+      </div>
+      <div class="thumbs" id="mdthumbs"></div>
+    </div>
+
+    <h3>Photo reel</h3>
+    <div class="grid3">
+      <div><label for="f-interval">Seconds per photo</label>
+        <input type="number" id="f-interval" min="2" max="120"></div>
+      <div><label>&nbsp;</label>
+        <label class="tog"><input type="checkbox" id="f-showloop"> Loop the reel</label></div>
+      <div><label>&nbsp;</label>
+        <label class="tog"><input type="checkbox" id="f-showoverlay"> Overlay countdown</label></div>
+    </div>
+    <div class="btnrow">
+      <button class="btn primary" id="reelstart">Start the reel on screen</button>
+      <button class="btn ghost" id="reelstop">Stop the reel</button>
+    </div>
+    <p class="sub">The reel runs through the photos above in order, skipping videos. It is
+      driven from this window, so leave it open &mdash; the second screen follows it.</p>
+  </div>
+
+  <!-- Music -->
+  <div class="pane" data-pane="music">
+    <h3>Music</h3>
+    <p class="sub" style="margin-top:0">Two ways to do this, and they fail in different
+      ways. <strong>Files</strong> play from this window with no internet at all.
+      <strong>YouTube</strong> needs a working connection and will run an ad between
+      tracks unless the account is on Premium.</p>
+
+    <h3>Audio files</h3>
+    <div id="deck">
+      <div class="dtop">
+        <button class="tbtn" id="auprev" title="Back">
+          <svg viewBox="0 0 24 24"><path d="M7 5v14M20 5 9.5 12 20 19z"/></svg></button>
+        <button class="tbtn big" id="auplay" title="Play / pause">
+          <svg viewBox="0 0 24 24" id="auicon"><path d="M7 4.5 19.5 12 7 19.5z"/></svg></button>
+        <button class="tbtn" id="aunext" title="Next">
+          <svg viewBox="0 0 24 24"><path d="M17 5v14M4 5 14.5 12 4 19z"/></svg></button>
+        <div class="dnow">
+          <div id="autitle">Nothing loaded</div>
+          <div id="ausub"></div>
+        </div>
+        <button class="tbtn" id="aumute" title="Mute">
+          <svg viewBox="0 0 24 24" id="auvicon"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.5 7.5 0 0 1 0 10.4"/></svg></button>
+        <input type="range" id="auvol" min="0" max="100" step="1" title="Volume">
+      </div>
+      <div class="dseek">
+        <span class="tt" id="aunow">0:00</span>
+        <input type="range" id="auseek" min="0" max="1000" step="1" value="0">
+        <span class="tt" id="audur">0:00</span>
+      </div>
+    </div>
+    <div class="btnrow">
+      <label class="btn" for="f-audio">+ Add audio</label>
+      <input type="file" id="f-audio" accept="audio/*" multiple hidden>
+      <button class="btn ghost" id="aushuffle">Shuffle the order</button>
+    </div>
+    <div id="aulist"></div>
+    <p class="sub">Plays out of this laptop, on this window, whatever is on the wall.
+      Nothing here is ever sent to the second screen, and the volume slider is this
+      player&rsquo;s own &mdash; it does not touch the laptop&rsquo;s output level.</p>
+
+    <h3>YouTube queue</h3>
+    <p class="sub" style="margin-top:0">A separate queue from the audio files above, and it
+      has to be: these tracks play in a YouTube window this page cannot see into, so nothing
+      can hand over from one list to the other. Pick a source per stretch of the night.
+      Paste links &mdash; one per line, watch links, <code>youtu.be</code> links or bare ids
+      all work.</p>
+    <textarea id="ytpaste" placeholder="https://www.youtube.com/watch?v=...
+https://youtu.be/..."></textarea>
+    <div class="btnrow">
+      <button class="btn" id="ytadd">Add to queue</button>
+      <button class="btn ghost" id="ytnames">Look up missing names</button>
+      <button class="btn primary" id="ytopen">Open the queue in YouTube</button>
+    </div>
+    <div id="ytlist"></div>
+    <p class="sub" id="ytnote"></p>
+
+    <h3>Finding a track</h3>
+    <div class="grid2">
+      <div><label for="ytq">Search YouTube</label>
+        <input type="text" id="ytq" placeholder="artist or track"></div>
+      <div><label>&nbsp;</label>
+        <button class="btn" id="ytsearch" style="width:100%">Search in a new tab</button></div>
+    </div>
+    <p class="sub">Searching inside this window is not possible &mdash; YouTube's search
+      needs an API key, and a key baked into a file that gets emailed around is a key that
+      leaks. This opens a normal YouTube tab instead; copy the link back into the box above.</p>
+  </div>
+
+  <!-- Data -->
+  <div class="pane" data-pane="data">
+    <h3>Hand this night to someone else</h3>
+    <p class="sub">Export saves a small <code>.json</code> file. Whoever is carrying the
+      laptop opens this screen, imports it, and has the exact same night.</p>
+    <div class="btnrow">
+      <button class="btn" id="exportbtn">Export tonight as JSON</button>
+      <label class="btn" for="importfile" style="display:inline-block">Import JSON</label>
+      <input type="file" id="importfile" accept="application/json,.json" hidden>
+    </div>
+    <h3>Start over</h3>
+    <p class="sub">Clears the saved event, schedule, sponsors and panels from this browser.</p>
+    <div class="btnrow"><button class="btn ghost" id="resetbtn">Reset everything</button></div>
+  </div>
+
+  <div class="bar">
+    <button class="btn primary" id="startbtn">Start the night</button>
+    <button class="btn" id="savebtn">Save</button>
+    <span class="saved" id="savednote"></span>
+    <span class="spacer"></span>
+    <span class="hint">Press <strong>E</strong> any time to come back &middot;
+      <strong>F</strong> for fullscreen</span>
+  </div>
+ </div>
+</div>
+
+<script>
+"use strict";
+
+/* ══════════════════════════════════════════════════════════════════════════
+   QR encoder — byte mode, error correction level M, versions 1-10.
+   Vendored deliberately: the venue has no internet, so a CDN library is not
+   an option. Enough capacity for any URL (213 bytes at version 10).
+   ══════════════════════════════════════════════════════════════════════════ */
+const QR = (function () {
+
+  // GF(256), primitive polynomial 0x11D
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  (function () {
+    let x = 1;
+    for (let i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11d; }
+    for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  })();
+  const mul = (a, b) => (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
+
+  // version -> [total data codewords, ec codewords per block, [[blocks, data cw], ...]]
+  const SPEC = {
+    1:  [16,  10, [[1, 16]]],
+    2:  [28,  16, [[1, 28]]],
+    3:  [44,  26, [[1, 44]]],
+    4:  [64,  18, [[2, 32]]],
+    5:  [86,  24, [[2, 43]]],
+    6:  [108, 16, [[4, 27]]],
+    7:  [124, 18, [[4, 31]]],
+    8:  [154, 22, [[2, 38], [2, 39]]],
+    9:  [182, 22, [[3, 36], [2, 37]]],
+    10: [216, 26, [[4, 43], [1, 44]]]
+  };
+  const ALIGN = {
+    1: [], 2: [6,18], 3: [6,22], 4: [6,26], 5: [6,30],
+    6: [6,34], 7: [6,22,38], 8: [6,24,42], 9: [6,26,46], 10: [6,28,50]
+  };
+  const REMAINDER = { 1:0, 2:7, 3:7, 4:7, 5:7, 6:7, 7:0, 8:0, 9:0, 10:0 };
+
+  function genPoly(n) {
+    let p = [1];
+    for (let i = 0; i < n; i++) {
+      const next = new Array(p.length + 1).fill(0);
+      for (let j = 0; j < p.length; j++) {
+        next[j] ^= p[j];
+        next[j + 1] ^= mul(p[j], EXP[i]);
+      }
+      p = next;
+    }
+    return p;
+  }
+
+  function ecBytes(data, ecLen) {
+    const gen = genPoly(ecLen);
+    const buf = new Uint8Array(data.length + ecLen);
+    buf.set(data);
+    for (let i = 0; i < data.length; i++) {
+      const c = buf[i];
+      if (!c) continue;
+      for (let j = 0; j < gen.length; j++) buf[i + j] ^= mul(gen[j], c);
+    }
+    return Array.from(buf.slice(data.length));
+  }
+
+  const cci = v => (v < 10 ? 8 : 16);
+  const capacity = v => Math.floor((SPEC[v][0] * 8 - 4 - cci(v)) / 8);
+
+  function utf8(str) {
+    const out = [];
+    for (const ch of str) {
+      let c = ch.codePointAt(0);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) out.push(0xc0 | c >> 6, 0x80 | c & 63);
+      else if (c < 0x10000) out.push(0xe0 | c >> 12, 0x80 | (c >> 6) & 63, 0x80 | c & 63);
+      else out.push(0xf0 | c >> 18, 0x80 | (c >> 12) & 63, 0x80 | (c >> 6) & 63, 0x80 | c & 63);
+    }
+    return out;
+  }
+
+  // Format info: BCH(15,5), EC level M = 0b00, then XOR 0x5412
+  function formatBits(mask) {
+    const d = mask;                       // (0b00 << 3) | mask
+    let r = d << 10;
+    for (let i = 14; i >= 10; i--) if ((r >> i) & 1) r ^= 0x537 << (i - 10);
+    return ((d << 10) | r) ^ 0x5412;
+  }
+  // Version info: BCH(18,6)
+  function versionBits(v) {
+    let r = v << 12;
+    for (let i = 17; i >= 12; i--) if ((r >> i) & 1) r ^= 0x1f25 << (i - 12);
+    return (v << 12) | r;
+  }
+
+  const MASKS = [
+    (i, j) => (i + j) % 2 === 0,
+    (i)    => i % 2 === 0,
+    (i, j) => j % 3 === 0,
+    (i, j) => (i + j) % 3 === 0,
+    (i, j) => (((i / 2) | 0) + ((j / 3) | 0)) % 2 === 0,
+    (i, j) => (i * j) % 2 + (i * j) % 3 === 0,
+    (i, j) => ((i * j) % 2 + (i * j) % 3) % 2 === 0,
+    (i, j) => ((i + j) % 2 + (i * j) % 3) % 2 === 0
+  ];
+
+  function penalty(m, size) {
+    let score = 0;
+
+    // Rule 1 — runs of five or more
+    for (let pass = 0; pass < 2; pass++) {
+      for (let a = 0; a < size; a++) {
+        let run = 1, prev = -1;
+        for (let b = 0; b < size; b++) {
+          const v = pass ? m[b][a] : m[a][b];
+          if (v === prev) { run++; if (run === 5) score += 3; else if (run > 5) score += 1; }
+          else { prev = v; run = 1; }
+        }
+      }
+    }
+    // Rule 2 — 2x2 blocks of one colour
+    for (let i = 0; i < size - 1; i++)
+      for (let j = 0; j < size - 1; j++) {
+        const v = m[i][j];
+        if (v === m[i][j + 1] && v === m[i + 1][j] && v === m[i + 1][j + 1]) score += 3;
+      }
+    // Rule 3 — finder-like 1:1:3:1:1 patterns with four light modules beside them
+    const A = [1,0,1,1,1,0,1,0,0,0,0], B = [0,0,0,0,1,0,1,1,1,0,1];
+    for (let pass = 0; pass < 2; pass++)
+      for (let a = 0; a < size; a++)
+        for (let b = 0; b <= size - 11; b++) {
+          let mA = true, mB = true;
+          for (let k = 0; k < 11; k++) {
+            const v = pass ? m[b + k][a] : m[a][b + k];
+            if (v !== A[k]) mA = false;
+            if (v !== B[k]) mB = false;
+            if (!mA && !mB) break;
+          }
+          if (mA) score += 40;
+          if (mB) score += 40;
+        }
+    // Rule 4 — deviation from a 50/50 dark ratio
+    let dark = 0;
+    for (let i = 0; i < size; i++) for (let j = 0; j < size; j++) dark += m[i][j];
+    const pct = dark * 100 / (size * size);
+    score += Math.floor(Math.abs(pct - 50) / 5) * 10;
+    return score;
+  }
+
+  function encode(text) {
+    const bytes = utf8(text);
+    let version = 0;
+    for (let v = 1; v <= 10; v++) if (bytes.length <= capacity(v)) { version = v; break; }
+    if (!version) throw new Error("QR: text too long (max " + capacity(10) + " bytes)");
+
+    const [totalData, ecPerBlock, groups] = SPEC[version];
+
+    // ── bit stream ─────────────────────────────────────────────────────
+    const bits = [];
+    const push = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1); };
+    push(0b0100, 4);                 // byte mode
+    push(bytes.length, cci(version));
+    for (const b of bytes) push(b, 8);
+    for (let i = 0; i < 4 && bits.length < totalData * 8; i++) bits.push(0);  // terminator
+    while (bits.length % 8) bits.push(0);
+    const words = [];
+    for (let i = 0; i < bits.length; i += 8) {
+      let v = 0; for (let k = 0; k < 8; k++) v = (v << 1) | bits[i + k];
+      words.push(v);
+    }
+    for (let i = 0; words.length < totalData; i++) words.push(i % 2 ? 0x11 : 0xec);
+
+    // ── split into blocks, add error correction ────────────────────────
+    const dataBlocks = [], ecBlocks = [];
+    let at = 0;
+    for (const [count, len] of groups)
+      for (let b = 0; b < count; b++) {
+        const chunk = words.slice(at, at + len); at += len;
+        dataBlocks.push(chunk);
+        ecBlocks.push(ecBytes(Uint8Array.from(chunk), ecPerBlock));
+      }
+
+    // ── interleave ─────────────────────────────────────────────────────
+    const stream = [];
+    const maxData = Math.max(...dataBlocks.map(b => b.length));
+    for (let i = 0; i < maxData; i++)
+      for (const blk of dataBlocks) if (i < blk.length) stream.push(blk[i]);
+    for (let i = 0; i < ecPerBlock; i++)
+      for (const blk of ecBlocks) stream.push(blk[i]);
+
+    const dataBits = [];
+    for (const b of stream) for (let i = 7; i >= 0; i--) dataBits.push((b >> i) & 1);
+    for (let i = 0; i < REMAINDER[version]; i++) dataBits.push(0);
+
+    // ── matrix ─────────────────────────────────────────────────────────
+    const size = version * 4 + 17;
+    const m = Array.from({ length: size }, () => new Uint8Array(size));
+    const fixed = Array.from({ length: size }, () => new Uint8Array(size));
+    const setFn = (r, c, v) => { m[r][c] = v; fixed[r][c] = 1; };
+
+    function finder(r, c) {
+      for (let i = -1; i <= 7; i++)
+        for (let j = -1; j <= 7; j++) {
+          const y = r + i, x = c + j;
+          if (y < 0 || y >= size || x < 0 || x >= size) continue;
+          const on = (i >= 0 && i <= 6 && (j === 0 || j === 6)) ||
+                     (j >= 0 && j <= 6 && (i === 0 || i === 6)) ||
+                     (i >= 2 && i <= 4 && j >= 2 && j <= 4);
+          setFn(y, x, on ? 1 : 0);
+        }
+    }
+    finder(0, 0); finder(0, size - 7); finder(size - 7, 0);
+
+    for (let i = 8; i < size - 8; i++) {          // timing
+      setFn(6, i, i % 2 === 0 ? 1 : 0);
+      setFn(i, 6, i % 2 === 0 ? 1 : 0);
+    }
+    for (const r of ALIGN[version])                // alignment
+      for (const c of ALIGN[version]) {
+        if ((r < 8 && c < 8) || (r < 8 && c > size - 9) || (r > size - 9 && c < 8)) continue;
+        for (let i = -2; i <= 2; i++)
+          for (let j = -2; j <= 2; j++)
+            setFn(r + i, c + j,
+                  (Math.max(Math.abs(i), Math.abs(j)) !== 1) ? 1 : 0);
+      }
+
+    // reserve the format areas (written after the mask is chosen)
+    for (let i = 0; i <= 8; i++) { if (i !== 6) { fixed[8][i] = 1; fixed[i][8] = 1; } }
+    for (let i = 0; i < 8; i++) { fixed[8][size - 1 - i] = 1; fixed[size - 1 - i][8] = 1; }
+    setFn(size - 8, 8, 1);                         // dark module
+
+    if (version >= 7) {
+      const vb = versionBits(version);
+      for (let i = 0; i < 18; i++) {
+        const b = (vb >> i) & 1, a = (i / 3) | 0, o = size - 11 + (i % 3);
+        setFn(a, o, b); setFn(o, a, b);
+      }
+    }
+
+    // ── place data, zigzag from bottom-right ───────────────────────────
+    let idx = 0, up = true;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;                  // skip the timing column
+      for (let vert = 0; vert < size; vert++) {
+        for (let k = 0; k < 2; k++) {
+          const col = right - k;
+          const row = up ? size - 1 - vert : vert;
+          if (fixed[row][col]) continue;
+          m[row][col] = idx < dataBits.length ? dataBits[idx++] : 0;
+        }
+      }
+      up = !up;
+    }
+
+    // ── choose the mask that scores lowest ─────────────────────────────
+    let best = null, bestScore = Infinity;
+    for (let mask = 0; mask < 8; mask++) {
+      const t = m.map(r => Uint8Array.from(r));
+      for (let i = 0; i < size; i++)
+        for (let j = 0; j < size; j++)
+          if (!fixed[i][j] && MASKS[mask](i, j)) t[i][j] ^= 1;
+
+      const fb = formatBits(mask), bit = i => (fb >> i) & 1;
+      // Copy 1, around the top-left finder: up column 8, then along row 8
+      for (let i = 0; i <= 5; i++) t[i][8] = bit(i);
+      t[7][8] = bit(6); t[8][8] = bit(7); t[8][7] = bit(8);
+      for (let i = 9; i <= 14; i++) t[8][14 - i] = bit(i);
+      // Copy 2, split between the other two finders
+      for (let i = 0; i <= 7; i++) t[8][size - 1 - i] = bit(i);
+      for (let i = 8; i <= 14; i++) t[size - 15 + i][8] = bit(i);
+      t[size - 8][8] = 1;
+
+      const s = penalty(t, size);
+      if (s < bestScore) { bestScore = s; best = t; }
+    }
+    return { size, modules: best, version };
+  }
+
+  // Render to SVG markup. Runs of dark modules are merged into one rect each.
+  function svg(text, quiet) {
+    const { size, modules } = encode(text);
+    const q = quiet == null ? 3 : quiet, dim = size + q * 2;
+    let d = "";
+    for (let r = 0; r < size; r++) {
+      let run = 0;
+      for (let c = 0; c <= size; c++) {
+        const on = c < size && modules[r][c];
+        if (on) { run++; continue; }
+        if (run) { d += `M${c - run + q} ${r + q}h${run}v1h-${run}z`; run = 0; }
+      }
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" `
+         + `shape-rendering="crispEdges" role="img" aria-label="QR code">`
+         + `<rect width="${dim}" height="${dim}" fill="#F9F5F4"/>`
+         + `<path d="${d}" fill="#0A192F"/></svg>`;
+  }
+
+  return { encode, svg, capacity };
+})();
+</script>
+
+<script>
+"use strict";
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+const STORE = "bies-event-screen-v1";
+const LIVE  = "bies-event-screen-live-v1";
+
+/* The board is a pure function of (config, wall clock), so a second window
+   showing the same config draws the same screen with no message passing. Only
+   the operator's runtime state — blackout, pause, which panel is held — has to
+   be published, and only the operator's window ever writes it. */
+const AUDIENCE = new URLSearchParams(location.search).get("view") === "audience";
+const REHEARSE_SPEED = 240;          // a 3-hour night replays in well under a minute
+const WARN_SEC = 120;                // countdown turns orange inside this
+
+/* ── Media store ───────────────────────────────────────────────────────
+   Slides, photos, clips and audio are far too big for localStorage, so the
+   files themselves live in IndexedDB and the config holds only their ids.
+   Checked on file:// in Chrome before this was built: it works there, blobs
+   come back byte-intact, and the quota is around 3 GB — a night of decks and
+   video with room to spare.
+
+   Ids are what cross between the two windows, never blob URLs. A blob URL
+   minted in a file:// page reports its origin as `blob:null/…` and the other
+   window cannot open it, so each window makes its own from the same record. */
+const MEDIA_DB = "bies-event-media", MEDIA_STORE = "files";
+let dbp = null;
+function db() {
+  if (dbp) return dbp;
+  dbp = new Promise((res, rej) => {
+    let rq;
+    try { rq = indexedDB.open(MEDIA_DB, 1); } catch (e) { rej(e); return; }
+    rq.onupgradeneeded = () => {
+      const d = rq.result;
+      if (!d.objectStoreNames.contains(MEDIA_STORE))
+        d.createObjectStore(MEDIA_STORE, { keyPath: "id" });
+    };
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror   = () => rej(rq.error);
+  });
+  return dbp;
+}
+function mediaTx(mode, fn) {
+  return db().then(d => new Promise((res, rej) => {
+    const tx = d.transaction(MEDIA_STORE, mode);
+    let out;
+    try { out = fn(tx.objectStore(MEDIA_STORE)); } catch (e) { rej(e); return; }
+    tx.oncomplete = () => res(out && typeof out === "object" && "result" in out ? out.result : out);
+    tx.onerror    = () => rej(tx.error);
+    tx.onabort    = () => rej(tx.error);
+  }));
+}
+const mediaGet  = id  => mediaTx("readonly",  st => st.get(id));
+const mediaPut  = rec => mediaTx("readwrite", st => st.put(rec));
+const mediaDel  = id  => mediaTx("readwrite", st => st.delete(id));
+const mediaKeys = ()  => mediaTx("readonly",  st => st.getAllKeys());
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+/* ── Defaults ──────────────────────────────────────────────────────────
+   No run-of-show document exists in BIES CORE, so this is a proposed
+   standard social night, not a recovered one. Edit it on the night.       */
+const STD_NIGHT = [
+  { title: "Doors open · Registration",       min: 30, brk: false, note: "" },
+  { title: "Refreshments & mingling",         min: 30, brk: false, note: "Grab a drink, find someone you haven't met" },
+  { title: "Welcome — MC opens",              min: 10, brk: false, note: "" },
+  { title: "Main talk",                       min: 25, brk: false, note: "" },
+  { title: "Q&A",                             min: 15, brk: false, note: "" },
+  { title: "Break",                           min: 15, brk: true,  note: "" },
+  { title: "Announcements & upcoming events", min: 10, brk: false, note: "" },
+  { title: "Open networking",                 min: 45, brk: false, note: "" },
+  { title: "Close & goodnight",               min: 15, brk: false, note: "" }
+];
+
+function defaults() {
+  const d = new Date();
+  return {
+    name: "Social Night",
+    code: "",
+    date: iso(d),
+    start: "18:30",
+    segments: STD_NIGHT.map(s => Object.assign({}, s)),
+    overrides: {},        // segment index -> pinned start (epoch ms)
+    extra: {},            // segment index -> minutes added by the operator
+    anchorSlip: 0,        // minutes the whole night has been shifted
+    qr: { title: "Join the community", url: "", cap: "Scan to join the BIES WhatsApp group",
+          img: "" },
+    sponsors: [],
+    upcoming: [
+      { when: "Sep 10", what: "Mastermind",               meta: "" },
+      { when: "Sep 17", what: "Networking Night",         meta: "" },
+      { when: "Sep 25", what: "El Salvador Oriente Tour", meta: "3 days" },
+      { when: "Oct 6",  what: "Bitcoin 101 — 6 weeks",    meta: "Tuesdays" }
+    ],
+    dwell1: 30,
+    dwell2: 12,
+
+    /* Show control. Files live in IndexedDB; these hold only ids and order. */
+    decks: [],     // { id, name, speaker, seg, kind, slides:[], pdf, pending:[] }
+    media: [],     // { id, name, kind:"image"|"video", mid, size }
+    music: [],     // { id, vid, artist, song } — YouTube queue
+    vol: 0.8,      // the audio player's own level, not the laptop's
+    audio: [],     // { id, name, mid } — local tracks, played from this window
+    show: { interval: 8, overlay: false, loop: false, sound: "air" }
+  };
+}
+
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+
+let cfg = defaults();
+const rt = {
+  autoAdvance: true, manualIndex: -1,
+  paused: false, pausedAt: 0, pauseAccum: 0,
+  rehearse: false, rehearseFrom: 0, rehearseAt: 0,
+  blackout: false,
+  panels: [], panelAt: 0, panelSince: 0, pinned: null,
+  air: null,           // what the room is looking at: {key, kind, id, …} or null
+  qrCache: null
+};
+
+/* ── Storage ─────────────────────────────────────────────────────────── */
+function save() {
+  if (AUDIENCE) return;                       // mirrors must never clobber the source
+  try { localStorage.setItem(STORE, JSON.stringify(cfg)); }
+  catch (e) { console.warn("save failed", e); }
+}
+
+// The slice of runtime state the second screen has to agree with us about
+const liveKeys = ["blackout", "paused", "pausedAt", "pauseAccum", "autoAdvance",
+                  "manualIndex", "rehearse", "rehearseFrom", "rehearseAt",
+                  "pinned", "panelAt", "panelSince", "air"];
+const liveSnapshot = () => JSON.stringify(liveKeys.reduce((o, k) => (o[k] = rt[k], o), {}));
+
+let lastLiveOut = "", lastLiveIn = "", lastCfgIn = "";
+
+function publishLive() {
+  const snap = liveSnapshot();
+  if (snap === lastLiveOut) return;
+  lastLiveOut = snap;
+  try { localStorage.setItem(LIVE, snap); } catch (_) {}
+}
+
+// Called every tick in the audience window: pull config and runtime state across.
+function pullLive() {
+  try {
+    const c = localStorage.getItem(STORE);
+    if (c && c !== lastCfgIn) { lastCfgIn = c; load(); rt.qrCache = null; }
+    const l = localStorage.getItem(LIVE);
+    if (l && l !== lastLiveIn) {
+      lastLiveIn = l;
+      const got = JSON.parse(l);
+      liveKeys.forEach(k => { if (got[k] !== undefined) rt[k] = got[k]; });
+    }
+  } catch (_) {}
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (!raw) return;
+    const got = JSON.parse(raw);
+    cfg = Object.assign(defaults(), got);
+    cfg.overrides = got.overrides || {};
+    cfg.extra = got.extra || {};
+    cfg.qr = Object.assign(defaults().qr, got.qr || {});
+    cfg.show = Object.assign(defaults().show, got.show || {});
+    ["decks", "media", "music", "audio"].forEach(k => {
+      if (!Array.isArray(cfg[k])) cfg[k] = [];
+    });
+    cfg.vol = Math.min(1, Math.max(0, +cfg.vol >= 0 ? +cfg.vol : 0.8));
+    cfg.music.forEach(m => {                    // v1 kept one free-text title
+      if (m.song == null) { m.song = m.title || ""; m.artist = m.artist || ""; }
+    });
+    if (!Array.isArray(cfg.segments) || !cfg.segments.length) cfg.segments = defaults().segments;
+    cfg.sponsors = (cfg.sponsors || []).map(s =>          // v1 stored bare data URLs
+      typeof s === "string" ? { src: s, name: "", show: false }
+                            : { src: s.src, name: s.name || "", show: !!s.show,
+                                x: s.x, y: s.y, w: s.w, h: s.h });
+    if (cfg.sponsors.some(s => !hasLayout(s))) autoArrangeSponsors();
+  } catch (e) { console.warn("load failed", e); }
+}
+
+/* ── Schedule maths ──────────────────────────────────────────────────── */
+function anchor() {
+  const [h, m] = String(cfg.start || "18:30").split(":").map(Number);
+  const d = new Date((cfg.date || iso(new Date())) + "T00:00:00");   // local, not UTC
+  d.setHours(h || 0, m || 0, 0, 0);
+  return d.getTime() + (cfg.anchorSlip || 0) * 60000;
+}
+
+// Durations chain from the anchor. An override pins one segment's start and
+// everything after it re-chains from there; `extra` stretches a single segment.
+function schedule() {
+  const starts = [], ends = [];
+  let t = anchor();
+  cfg.segments.forEach((s, i) => {
+    if (cfg.overrides[i] != null) t = cfg.overrides[i];
+    starts[i] = t;
+    ends[i] = t + Math.max(0, (Number(s.min) || 0) + (cfg.extra[i] || 0)) * 60000;
+    t = ends[i];
+  });
+  return { starts, ends };
+}
+
+// The schedule clock. Pausing freezes it; rehearsing runs it fast.
+function nowSched() {
+  if (rt.rehearse) return rt.rehearseFrom + (Date.now() - rt.rehearseAt) * REHEARSE_SPEED;
+  if (rt.paused)   return rt.pausedAt - rt.pauseAccum;
+  return Date.now() - rt.pauseAccum;
+}
+// The header clock shows the REAL time — except while rehearsing, where showing
+// the true time next to a simulated countdown would be a lie.
+const nowClock = () => rt.rehearse ? nowSched() : Date.now();
+
+function current() {
+  const { starts, ends } = schedule();
+  const n = cfg.segments.length;
+  const now = nowSched();
+  if (!n) return { idx: -1, starts, ends, state: "empty" };
+
+  if (rt.autoAdvance) {
+    if (now < starts[0])   return { idx: -1, starts, ends, state: "pre" };
+    if (now >= ends[n - 1]) return { idx: n - 1, starts, ends, state: "post" };
+    let i = 0;
+    for (let k = 0; k < n; k++) if (now >= starts[k]) i = k;
+    return { idx: i, starts, ends, state: "run" };
+  }
+  if (rt.manualIndex < 0)  return { idx: -1, starts, ends, state: "pre" };
+  if (rt.manualIndex >= n) return { idx: n - 1, starts, ends, state: "post" };
+  return { idx: rt.manualIndex, starts, ends, state: "run" };
+}
+
+/* ── Formatting ──────────────────────────────────────────────────────── */
+function hhmm(ms) {
+  const d = new Date(ms);
+  let h = d.getHours(); const m = d.getMinutes();
+  const mer = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return { t: `${h}:${String(m).padStart(2, "0")}`, mer };
+}
+const clockStr = ms => { const p = hhmm(ms); return `${p.t} ${p.mer}`; };
+
+function dur(ms) {
+  const neg = ms < 0;
+  let s = Math.floor(Math.abs(ms) / 1000);
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60);   s -= m * 60;
+  const body = h > 0
+    ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`
+    : `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  return (neg ? "+" : "") + body;
+}
+
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const dayStr = ms => { const d = new Date(ms);
+  return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+
+/* ── Render ──────────────────────────────────────────────────────────── */
+function renderHead() {
+  const t = nowClock(), p = hhmm(t);
+  $("#clock").innerHTML = `${p.t}<span class="mer">${p.mer}</span>`;
+  $("#datum").textContent = dayStr(t);
+  $("#blackclock").textContent = clockStr(t);
+  $("#ident").textContent = [cfg.name, cfg.code].filter(Boolean).join(" · ") || "BIES";
+}
+
+function renderHero() {
+  const { idx, starts, ends, state } = current();
+  const segs = cfg.segments;
+  const now = nowSched();
+  const cEl = $("#count"), sEl = $("#countsub");
+  let target = null, over = false;
+
+  if (state === "pre" || state === "empty") {
+    $("#nowtitle").textContent = cfg.name || "Welcome";
+    $("#nownote").textContent  = "Doors open shortly — make yourself at home.";
+    $("#nextkicker").textContent = "Starting with";
+    $("#nexttitle").textContent  = segs.length ? segs[0].title : "—";
+    target = segs.length ? starts[0] : null;
+  } else if (state === "post") {
+    $("#nowtitle").textContent = "That's a wrap";
+    $("#nownote").textContent  = "Thanks for coming — travel safe.";
+    $("#nextkicker").textContent = "See you at";
+    $("#nexttitle").textContent  = cfg.upcoming.length
+      ? `${cfg.upcoming[0].what} · ${cfg.upcoming[0].when}` : "the next one";
+    target = null;
+  } else {
+    const s = segs[idx];
+    $("#nowtitle").textContent = s.title;
+    $("#nownote").textContent  = s.note || "";
+    const nxt = segs[idx + 1];
+    $("#nextkicker").textContent = nxt ? "Up next" : "Then";
+    $("#nexttitle").textContent  = nxt ? nxt.title : "That's a wrap";
+    target = ends[idx];
+    over = now > target;
+  }
+
+  if (target == null) {
+    cEl.textContent = ""; sEl.textContent = "";
+    cEl.className = "";
+  } else {
+    const left = target - now;
+    cEl.textContent = dur(left);
+    cEl.className = over ? "over" : (left <= WARN_SEC * 1000 ? "warn" : "");
+    sEl.textContent = over
+      ? "running over"
+      : (state === "pre" ? `starts ${clockStr(target)}` : `until ${clockStr(target)}`);
+  }
+  return { idx, starts, ends, state, over, target };
+}
+
+function renderBreak(ctx) {
+  const seg = ctx.state === "run" ? cfg.segments[ctx.idx] : null;
+  const on = !!(seg && seg.brk) && !rt.blackout;
+  $("#breakview").classList.toggle("live", on);
+  if (!on) return;
+  $("#breakclock").textContent = clockStr(nowClock());
+  const left = ctx.target - nowSched(), over = left < 0;
+  $("#breaktitle").textContent = over ? "We're back" : "Back in";
+  const c = $("#breakcount");
+  c.textContent = dur(left);
+  c.className = over ? "over" : (left <= WARN_SEC * 1000 ? "warn" : "");
+  $("#breaksub").textContent = over
+    ? "grabbing everyone now" : `back at ${clockStr(ctx.target)}`;
+}
+
+function renderItinerary(ctx) {
+  const box = $("#itin"), segs = cfg.segments;
+  document.documentElement.style.setProperty(
+    "--row-scale", Math.max(0.55, Math.min(1, 7.6 / segs.length)));
+
+  const html = segs.map((s, i) => {
+    const cls = ctx.state === "run" && i === ctx.idx ? "now"
+              : (ctx.starts[i] != null && nowSched() >= ctx.ends[i] ? "past" : "");
+    const badge = cls === "past" ? "done" : "";   // times and titles only, no durations
+    return `<div class="row ${cls}">`
+         + `<div class="t">${clockStr(ctx.starts[i])}</div>`
+         + `<div class="n">${esc(s.title)}`
+         + (badge ? `<span class="d">${badge}</span>` : "")
+         + `</div></div>`;
+  }).join("");
+  if (box.dataset.sig !== html) { box.innerHTML = html; box.dataset.sig = html; }
+}
+
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+function renderUpcoming() {
+  const box = $("#upnext");
+  const html = cfg.upcoming.map(e =>
+    `<div class="ev"><div class="when">${esc(stripCode(e.when))}</div>`
+  + `<div class="what">${esc(stripCode(e.what))}</div>`
+  + `<div class="meta">${esc(stripCode(e.meta))}</div></div>`).join("");
+  if (box.dataset.sig !== html) { box.innerHTML = html; box.dataset.sig = html; }
+}
+
+function renderQR() {
+  const url = (cfg.qr.url || "").trim(), img = cfg.qr.img || "";
+  $("#qrtitle").textContent = cfg.qr.title || "";
+  $("#qrcap").textContent   = cfg.qr.cap || "";
+  $("#qrurl").textContent   = url.replace(/^https?:\/\//, "");
+
+  const key = img ? "img:" + img.length + ":" + img.slice(-32) : "url:" + url;
+  if (rt.qrCache === key) return;
+  rt.qrCache = key;
+  if (img) { $("#qrbox").innerHTML = `<img src="${img}" alt="QR code">`; return; }
+  try { $("#qrbox").innerHTML = url ? QR.svg(url) : ""; }
+  catch (e) { $("#qrbox").innerHTML = ""; console.warn("QR:", e.message); }
+}
+
+function sponsorHTML(s) {
+  return `<div class="sp" style="left:${s.x}%;top:${s.y}%;width:${s.w}%;height:${s.h}%">`
+       + `<div class="plate"><img src="${s.src}" alt="${esc(s.name)}"></div>`
+       + (s.show && s.name ? `<span class="spname">${esc(s.name)}</span>` : "")
+       + `</div>`;
+}
+
+function renderSponsors() {
+  const box = $("#sponsors");
+  const html = cfg.sponsors.map(sponsorHTML).join("");
+  if (box.dataset.sig !== html) { box.innerHTML = html; box.dataset.sig = html; }
+}
+
+function panelList() {
+  const l = ["itinerary"];
+  if (cfg.upcoming.length)      l.push("upcoming");
+  if ((cfg.qr.url || "").trim() || cfg.qr.img) l.push("qr");
+  if (cfg.sponsors.length)      l.push("sponsors");
+  return l;
+}
+
+function renderPanels() {
+  rt.panels = panelList();
+  const want = rt.pinned && rt.panels.includes(rt.pinned)
+    ? rt.pinned : rt.panels[rt.panelAt % rt.panels.length];
+
+  if (!rt.pinned && !AUDIENCE) {          // the operator's window owns rotation and
+    const now = Date.now();               // publishes it, so the screens stay in step
+    const dwell = (want === "itinerary" ? cfg.dwell1 : cfg.dwell2) * 1000;
+    if (!rt.panelSince) rt.panelSince = now;
+    if (now - rt.panelSince > Math.max(3000, dwell)) {
+      rt.panelAt = (rt.panelAt + 1) % rt.panels.length;
+      rt.panelSince = now;
+    }
+  }
+  const live = rt.pinned && rt.panels.includes(rt.pinned)
+    ? rt.pinned : rt.panels[rt.panelAt % rt.panels.length];
+  $$(".panel").forEach(p => p.classList.toggle("live", p.dataset.panel === live));
+}
+
+function renderChips(ctx) {
+  $("#chipmode").classList.toggle("hide", rt.autoAdvance);   // only worth saying when off
+  $("#chippause").classList.toggle("hide", !rt.paused);
+  $("#chiprehearse").classList.toggle("hide", !rt.rehearse);
+
+  // How far tonight has drifted from the schedule as it was first written
+  let slip = cfg.anchorSlip || 0;
+  for (const k in cfg.extra) slip += cfg.extra[k] || 0;
+  const late = $("#chiplate");
+  if (Math.abs(slip) >= 1 && ctx.state !== "post") {
+    late.classList.remove("hide");
+    late.textContent = slip > 0 ? `${Math.round(slip)} min behind` : `${Math.round(-slip)} min ahead`;
+  } else late.classList.add("hide");
+}
+
+/* ── On air ──────────────────────────────────────────────────────────────
+   Both windows render this the same way from the same record, so there is no
+   handoff to go wrong: the operator writes an id into the live state and each
+   window fetches the file and mounts it itself. */
+let mounted = { key: null, url: null, node: null, kind: null };
+let mounting = null, lastCmd = -1;
+
+function clearAir() {
+  if (mounted.url) { try { URL.revokeObjectURL(mounted.url); } catch (_) {} }
+  mounted = { key: null, url: null, node: null, kind: null };
+  const st = $("#airstage");
+  if (st) st.innerHTML = "";
+  lastCmd = -1;
+}
+
+/* Transport for video. The operator stamps a command with a sequence number;
+   both windows apply it once, so the control window shows the room's frame
+   rather than a second, drifting playback of its own. */
+function applyCmd(a) {
+  const v = mounted.node;
+  if (!v || mounted.kind !== "video" || !a.cmd || a.cmd.n === lastCmd) return;
+  lastCmd = a.cmd.n;
+  try {
+    if (a.cmd.t != null && isFinite(a.cmd.t)) v.currentTime = a.cmd.t;
+    if (a.cmd.act === "play") { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); }
+    else v.pause();
+  } catch (_) {}
+}
+
+// Exactly one window may make sound, or the room hears everything twice.
+const soundHere = a => (a.sound === "air") === AUDIENCE;
+
+function renderAir() {
+  const a = rt.air, view = $("#airview");
+  if (!view) return;
+
+  if (!a || !a.key) {
+    if (mounted.key || mounting) { mounting = null; clearAir(); }
+    view.classList.remove("live");
+    return;
+  }
+  view.classList.add("live");
+
+  if (a.key !== mounted.key && mounting !== a.key) {
+    mounting = a.key;
+    mediaGet(a.id).then(rec => {
+      if (mounting !== a.key) return;          // superseded while we were reading
+      mounting = null;
+      clearAir();
+      if (!rec || !rec.blob) return;
+      const url = URL.createObjectURL(rec.blob);
+      let node;
+      if (a.kind === "video") {
+        node = document.createElement("video");
+        node.playsInline = true;
+        node.muted = !soundHere(a);
+        node.loop  = !!a.loop;
+        node.src   = url;
+      } else if (a.kind === "pdf") {
+        node = document.createElement("embed");
+        node.type = "application/pdf";
+        /* Chrome's own PDF viewer, with its chrome switched off. Verified on
+           file://: no toolbar, no scrollbars, page fitted. It will not accept
+           a page change after loading, though — which is why a deck the tech
+           needs to drive is converted to slide images instead. */
+        node.src = url + "#toolbar=0&navpanes=0&scrollbar=0&view=Fit"
+                       + (a.page ? "&page=" + a.page : "");
+      } else {
+        node = document.createElement("img");
+        node.alt = ""; node.src = url;
+      }
+      mounted = { key: a.key, url, node, kind: a.kind };
+      $("#airstage").appendChild(node);
+      applyCmd(a);
+    }).catch(() => { mounting = null; });
+  } else if (mounted.node) {
+    if (mounted.kind === "video") {
+      mounted.node.muted = !soundHere(a);
+      mounted.node.loop  = !!a.loop;
+    }
+    applyCmd(a);
+  }
+
+  const slug = $("#airslug");
+  if (a.overlay) {
+    slug.classList.add("on");
+    $("#airslugk").textContent = $("#nextkicker").textContent;
+    $("#airslugt").textContent = $("#nexttitle").textContent;
+    const c = $("#count");
+    $("#airslugc").textContent = c.textContent;
+    $("#airslugc").className   = "c " + (c.className || "");
+  } else slug.classList.remove("on");
+}
+
+let ticking = false;
+function tick() {
+  if (ticking) return;
+  ticking = true;
+  try {
+    if (AUDIENCE) pullLive();
+    renderHead();
+    const ctx = renderHero();
+    renderBreak(ctx);
+    renderItinerary(ctx);
+    renderUpcoming();
+    renderQR();
+    renderSponsors();
+    renderPanels();
+    renderChips(ctx);
+    renderAir();
+    renderSetupLive();
+    $("#blackout").classList.toggle("live", rt.blackout);
+    if (!AUDIENCE) { publishLive(); renderSecondChip(); }
+  } catch (e) {
+    console.error("tick", e);          // one bad segment must not freeze the clock
+  } finally { ticking = false; }
+}
+</script>
+
+<script>
+"use strict";
+
+/* ── Operator actions ────────────────────────────────────────────────── */
+
+// Pinning a segment start must clear every pin after it, or an earlier
+// "advance" would still be holding a later segment to a stale time.
+function pin(i, t) {
+  cfg.overrides[i] = t;
+  Object.keys(cfg.overrides).forEach(k => { if (Number(k) > i) delete cfg.overrides[k]; });
+}
+
+function advance() {
+  const { idx, state } = current();
+  const n = cfg.segments.length;
+  if (!n || state === "post") return;
+  const target = state === "pre" ? 0 : idx + 1;
+
+  if (target >= n) {                       // finishing the last segment early
+    const { starts } = schedule();
+    const base = Number(cfg.segments[n - 1].min) || 0;
+    cfg.extra[n - 1] = (nowSched() - starts[n - 1]) / 60000 - base;
+    if (!rt.autoAdvance) rt.manualIndex = n;
+  } else {
+    pin(target, nowSched());
+    if (!rt.autoAdvance) rt.manualIndex = target;
+  }
+  save(); tick();
+}
+
+function back() {
+  const { idx, state } = current();
+  const n = cfg.segments.length;
+  if (!n || state === "pre") return;
+  const target = state === "post" ? n - 1 : idx - 1;
+  if (target < 0) {
+    Object.keys(cfg.overrides).forEach(k => delete cfg.overrides[k]);
+    rt.manualIndex = -1;
+  } else {
+    pin(target, nowSched());
+    if (!rt.autoAdvance) rt.manualIndex = target;
+  }
+  save(); tick();
+}
+
+// Before the night starts this moves the whole thing; once running it stretches
+// the segment you are in, which pushes everything after it.
+function slip(mins) {
+  const { idx, state } = current();
+  if (state === "post" || state === "empty") return;
+  if (state === "pre") cfg.anchorSlip = (cfg.anchorSlip || 0) + mins;
+  else {
+    const base = Number(cfg.segments[idx].min) || 0;
+    cfg.extra[idx] = Math.max(-base, (cfg.extra[idx] || 0) + mins);
+  }
+  save(); tick();
+}
+
+function togglePause() {
+  if (rt.paused) { rt.pauseAccum += Date.now() - rt.pausedAt; rt.paused = false; }
+  else { rt.pausedAt = Date.now(); rt.paused = true; }
+  tick();
+}
+
+function setRehearse(on) {
+  if (on && cfg.segments.length) {
+    const { starts } = schedule();
+    rt.rehearse = true;
+    rt.rehearseFrom = starts[0] - 90 * 1000;    // start a minute and a half before doors
+    rt.rehearseAt = Date.now();
+  } else rt.rehearse = false;
+  tick();
+}
+
+function fullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen().catch(() => {});
+}
+
+/* ── Second screen ───────────────────────────────────────────────────────
+   The audience view is the same file with ?view=audience. Where Chrome grants
+   the window-management permission it opens straight onto the external display;
+   otherwise it opens as a normal window for the operator to drag across.     */
+let secondWin = null;
+
+async function openSecondScreen() {
+  if (secondWin && !secondWin.closed) { secondWin.focus(); return; }
+  const base = location.href.split("?")[0].split("#")[0];
+  let feat = "width=1280,height=720,left=60,top=60";
+  try {
+    if (window.getScreenDetails) {
+      const det = await window.getScreenDetails();
+      const ext = det.screens.find(s => !s.isPrimary) || null;
+      if (ext) feat = `left=${ext.availLeft},top=${ext.availTop},`
+                    + `width=${ext.availWidth},height=${ext.availHeight}`;
+    }
+  } catch (_) { /* permission denied or unsupported — the manual route still works */ }
+  publishLive();
+  secondWin = window.open(base + "?view=audience", "biesAudience", feat);
+  if (!secondWin) alert("The browser blocked the second window. Allow pop-ups for this file and try again.");
+  renderSecondChip();
+}
+
+function renderSecondChip() {
+  const on = !!(secondWin && !secondWin.closed);
+  $("#chipsecond").classList.toggle("hide", !on);
+  $("#secondbtn").textContent = on ? "2nd screen open" : "Second screen";
+}
+
+/* ── Keyboard ────────────────────────────────────────────────────────── */
+document.addEventListener("keydown", e => {
+  if (AUDIENCE) {                      // a mirror has no controls of its own
+    if (e.key === "f" || e.key === "F") fullscreen();
+    return;
+  }
+  if ($("#timepop").classList.contains("on")) {      // innermost thing first
+    if (e.key === "Escape") { closeTimePop(); return; }
+  }
+  if ($("#arrange").classList.contains("on")) {
+    if (e.key === "Escape") closeArrange();
+    return;
+  }
+  if ($("#setup").classList.contains("live")) {
+    if (e.key === "Escape") closeSetup();
+    return;                                  // let the form have every other key
+  }
+  const k = e.key;
+  if (k === "Escape") {
+    if ($("#help").classList.contains("live")) $("#help").classList.remove("live");
+    else if (rt.rehearse) setRehearse(false);
+    else if (rt.blackout) { rt.blackout = false; tick(); }
+    return;
+  }
+  switch (k) {
+    case "f": case "F": fullscreen(); break;
+    case "ArrowRight": case "n": case "N": advance(); break;
+    case "ArrowLeft": back(); break;
+    case "PageDown": if (airDeckId()) { e.preventDefault(); airStep(1); }  break;
+    case "PageUp":   if (airDeckId()) { e.preventDefault(); airStep(-1); } break;
+    case "=": slip(5); break;
+    case "+": slip(1); break;
+    case "-": slip(-5); break;
+    case "_": slip(-1); break;
+    case "a": case "A": {
+      const here = current().idx;          // read BEFORE flipping, or current()
+      rt.autoAdvance = !rt.autoAdvance;    // reads a stale manualIndex and rewinds
+      if (!rt.autoAdvance) rt.manualIndex = here;
+      tick(); break;
+    }
+    case " ": e.preventDefault(); togglePause(); break;
+    case "1": case "2": case "3": case "4": {
+      const list = panelList(), want = ["itinerary", "upcoming", "qr", "sponsors"][+k - 1];
+      if (list.includes(want)) { rt.pinned = want; tick(); }
+      break;
+    }
+    case "r": case "R": rt.pinned = null; rt.panelSince = Date.now(); tick(); break;
+    case "b": case "B": rt.blackout = !rt.blackout; tick(); break;
+    case "e": case "E": openSetup(); break;
+    case "s": case "S": openSecondScreen(); break;
+    case "d": case "D": setRehearse(!rt.rehearse); break;
+    case "?": case "/": $("#help").classList.toggle("live"); break;
+  }
+});
+
+// The cursor and the buttons have no business sitting on a screen all night,
+// so they surface on any hint of a human and fade again shortly after.
+let cursorTimer = null;
+function reveal(ms) {
+  document.body.classList.add("show-cursor");
+  clearTimeout(cursorTimer);
+  cursorTimer = setTimeout(() => {
+    if (!$("#setup").classList.contains("live")) document.body.classList.remove("show-cursor");
+  }, ms || 2500);
+}
+document.addEventListener("mousemove", () => reveal(2500));
+document.addEventListener("pointerdown", () => reveal(4000));
+
+$("#editbtn").addEventListener("click", openSetup);
+$("#fsbtn").addEventListener("click", fullscreen);
+$("#secondbtn").addEventListener("click", openSecondScreen);
+$("#keysbtn").addEventListener("click", () => { $("#help").classList.toggle("live"); reveal(4000); });
+
+/* ── Editing the running order mid-event ─────────────────────────────────
+   overrides/extra are keyed by segment index, so any splice would silently
+   attach them to the wrong segment. Remapping keeps tonight's accumulated
+   slip attached to the right rows instead of throwing it away.            */
+function remapTiming(map) {
+  const o = {}, x = {};
+  Object.keys(cfg.overrides).forEach(k => {
+    const n = map[+k]; if (n != null && n >= 0) o[n] = cfg.overrides[k];
+  });
+  Object.keys(cfg.extra).forEach(k => {
+    const n = map[+k]; if (n != null && n >= 0) x[n] = cfg.extra[k];
+  });
+  cfg.overrides = o; cfg.extra = x;
+  if (rt.manualIndex >= 0) {
+    const n = map[rt.manualIndex];
+    rt.manualIndex = (n == null || n < 0) ? Math.max(0, rt.manualIndex - 1) : n;
+  }
+}
+/* Adding, removing or reordering during a live event must only ever affect what
+   has not happened yet. Without this, inserting ten minutes ahead of the segment
+   on screen would push that segment into the future and the board would jump
+   backwards into something the room never saw. So the live segment is pinned to
+   the moment it actually started, and the edit chains forward from there. */
+function editSegments(mutate, mapFor) {
+  const before = current();
+  const running = before.state === "run";
+  const liveAt  = running ? before.starts[before.idx] : null;
+  const liveIdx = before.idx;
+  const n = cfg.segments.length;
+
+  mutate();
+  const map = mapFor(n);
+  remapTiming(map);
+
+  if (running) {
+    const moved = map[liveIdx];
+    const target = (moved != null && moved >= 0)
+      ? moved                                       // the live segment survived
+      : Math.min(liveIdx, cfg.segments.length - 1); // it was deleted; whatever took its slot
+    if (target >= 0) pin(target, liveAt);
+  }
+  save();
+}
+
+const deleteMap = (n, i) => { const m = {};
+  for (let k = 0; k < n; k++) m[k] = k < i ? k : (k === i ? -1 : k - 1); return m; };
+const insertMap = (n, at) => { const m = {};
+  for (let k = 0; k < n; k++) m[k] = k < at ? k : k + 1; return m; };
+const moveMap = (n, from, to) => { const m = {};
+  for (let k = 0; k < n; k++) {
+    if (k === from) m[k] = to;
+    else if (from < to && k > from && k <= to) m[k] = k - 1;
+    else if (from > to && k >= to && k < from) m[k] = k + 1;
+    else m[k] = k;
+  } return m; };
+
+/* ── Setup screen ────────────────────────────────────────────────────── */
+function segRows() {
+  const { starts, ends } = schedule();
+  $("#seglist").innerHTML = cfg.segments.map((s, i) => `
+    <div class="segrow" draggable="true" data-i="${i}">
+      <div class="hnd" title="Drag to reorder">&#8942;&#8942;</div>
+      <button type="button" class="clock" data-f="at" data-at="${hhmm24(starts[i])}"
+              title="Click to change the start time">${clockStr(starts[i])}</button>
+      <div class="ttl">
+        <input type="text" data-f="title" value="${esc(s.title)}" placeholder="Segment name">
+        <input type="text" data-f="note" value="${esc(s.note || "")}"
+               placeholder="Note (optional) — shown on screen under the title">
+      </div>
+      <input type="number" data-f="min" value="${Number(s.min) || 0}" min="0" max="600">
+      <label class="brk"><input type="checkbox" data-f="brk" ${s.brk ? "checked" : ""}><span>Break</span></label>
+      <button class="ins" title="Add a segment below">+</button>
+      <button class="del" title="Remove">&times;</button>
+    </div>`).join("");
+  $("#endsat").textContent = ends.length ? clockStr(ends[ends.length - 1]) : "—";
+}
+
+const hhmm24 = ms => {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+};
+
+// Typing a start time is really a statement about the segment BEFORE it: make that
+// one last exactly long enough to hand over at the requested moment. Everything
+// after re-chains from there, so one edit never silently reshuffles the night.
+function setRowTime(i, value) {
+  const [hh, mm] = String(value).split(":").map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return;
+
+  if (i === 0) {
+    cfg.start = value;
+    const f = $("#f-start"); if (f) f.value = value;   // or readSetup would undo it
+    cfg.anchorSlip = 0;                 // the stated time now includes any slip
+    delete cfg.overrides[0];
+    if (current().state !== "run") { cfg.overrides = {}; cfg.extra = {}; }
+    return;
+  }
+
+  const prev = schedule().starts[i - 1];
+  const d = new Date(prev); d.setHours(hh, mm, 0, 0);
+  let at = d.getTime();
+  if (at < prev) {                       // a night that runs past midnight
+    const nextDay = at + 86400000;
+    at = (nextDay - prev) <= 12 * 3600000 ? nextDay : prev;
+  }
+  cfg.segments[i - 1].min = Math.max(0, Math.round((at - prev) / 60000));
+  delete cfg.extra[i - 1];               // the new length absorbs the old stretch
+  delete cfg.overrides[i];               // and this segment chains rather than pins
+}
+
+/* A scrollable picker rather than the browser's stepper: on a laptop being
+   driven with a trackpad, spinning a column of real times is quicker and far
+   less fiddly than nudging two little arrows. */
+let popRow = null;
+const pad2 = n => String(n).padStart(2, "0");
+
+function buildTimePop() {
+  const pop = $("#timepop");
+  const cols = { h: [], m: [], ap: [] };
+  for (let i = 1; i <= 12; i++) cols.h.push([String(i), String(i)]);
+  for (let i = 0; i < 60; i++)  cols.m.push([pad2(i), pad2(i)]);
+  cols.ap = [["AM", "AM"], ["PM", "PM"]];
+  pop.querySelectorAll(".col").forEach(col => {
+    col.innerHTML = cols[col.dataset.part]
+      .map(([v, lbl]) => `<button type="button" data-v="${v}">${lbl}</button>`).join("");
+  });
+}
+
+function popValue() {                       // current picker state as 24h "HH:MM"
+  const get = part => $(`#timepop .col[data-part="${part}"] .sel`);
+  const h = +(get("h") || {}).dataset?.v || 12;
+  const m = +(get("m") || {}).dataset?.v || 0;
+  const ap = ((get("ap") || {}).dataset?.v) || "AM";
+  let H = h % 12; if (ap === "PM") H += 12;
+  return `${pad2(H)}:${pad2(m)}`;
+}
+
+function markPop(hhmm) {
+  const [H, M] = hhmm.split(":").map(Number);
+  const h12 = (H % 12) || 12, ap = H >= 12 ? "PM" : "AM";
+  const want = { h: String(h12), m: pad2(M), ap };
+  $("#timepop").querySelectorAll(".col").forEach(col => {
+    const part = col.dataset.part;
+    col.querySelectorAll("button").forEach(b => {
+      const on = b.dataset.v === want[part];
+      b.classList.toggle("sel", on);
+      if (on) col.scrollTop = b.offsetTop - col.clientHeight / 2 + b.offsetHeight / 2;
+    });
+  });
+}
+
+function positionTimePop() {
+  if (!popRow) return;
+  const pop = $("#timepop");
+  const r = popRow.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > innerHeight) { closeTimePop(); return; }   // row scrolled away
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pr.width - 8)) + "px";
+  const below = r.bottom + 6, above = r.top - pr.height - 6;
+  pop.style.top = (below + pr.height <= innerHeight || above < 8 ? below : above) + "px";
+}
+
+function openTimePop(btn) {
+  closeTimePop();
+  popRow = btn;
+  btn.classList.add("open");
+  $("#timepop").classList.add("on");
+  markPop(btn.dataset.at || "18:00");
+  positionTimePop();
+}
+
+function closeTimePop() {
+  $("#timepop").classList.remove("on");
+  if (popRow) popRow.classList.remove("open");
+  popRow = null;
+}
+
+$("#timepop").addEventListener("click", e => {
+  const b = e.target.closest("button[data-v]"); if (!b || !popRow) return;
+  b.parentElement.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+  b.classList.add("sel");
+  const i = +popRow.closest(".segrow").dataset.i;
+  const value = popValue();
+  setRowTime(i, value);
+  save(); markSaved();
+  segRows();
+  const again = $(`.segrow[data-i="${i}"] .clock`);   // the list just re-rendered
+  if (again) { popRow.classList.remove("open"); popRow = again; again.classList.add("open"); }
+});
+
+$("#seglist").addEventListener("click", e => {
+  const btn = e.target.closest(".clock");
+  if (btn) { e.preventDefault(); openTimePop(btn); }
+});
+document.addEventListener("pointerdown", e => {
+  if ($("#timepop").classList.contains("on")
+      && !e.target.closest("#timepop") && !e.target.closest(".clock")) closeTimePop();
+}, true);
+$("#setup").addEventListener("scroll", positionTimePop, true);
+addEventListener("resize", positionTimePop);
+
+$("#seglist").addEventListener("input", e => {
+  const row = e.target.closest(".segrow"); if (!row) return;
+  const i = +row.dataset.i, f = e.target.dataset.f; if (!f) return;
+  cfg.segments[i][f] = f === "brk" ? e.target.checked
+                     : f === "min" ? Math.max(0, +e.target.value || 0)
+                     : e.target.value;
+  save();
+  if (f !== "title" && f !== "note") segRows();        // typing must not steal focus
+  else {
+    const { ends } = schedule();
+    $("#endsat").textContent = ends.length ? clockStr(ends[ends.length - 1]) : "—";
+  }
+});
+
+$("#seglist").addEventListener("click", e => {
+  const row = e.target.closest(".segrow"); if (!row) return;
+  const i = +row.dataset.i, n = cfg.segments.length;
+  if (e.target.classList.contains("ins")) {
+    editSegments(() => cfg.segments.splice(i + 1, 0,
+                   { title: "New segment", min: 10, brk: false, note: "" }),
+                 len => insertMap(len, i + 1));
+    segRows();
+  } else if (e.target.classList.contains("del")) {
+    if (n <= 1) return;                     // never leave the board with nothing to show
+    editSegments(() => cfg.segments.splice(i, 1), len => deleteMap(len, i));
+    segRows();
+  }
+});
+
+let dragFrom = null;
+$("#seglist").addEventListener("dragstart", e => {
+  const row = e.target.closest(".segrow"); if (!row) return;
+  dragFrom = +row.dataset.i; row.classList.add("drag");
+  e.dataTransfer.effectAllowed = "move";
+  try { e.dataTransfer.setData("text/plain", String(dragFrom)); } catch (_) {}
+});
+$("#seglist").addEventListener("dragover", e => {
+  e.preventDefault(); e.dataTransfer.dropEffect = "move";
+});
+$("#seglist").addEventListener("drop", e => {
+  e.preventDefault();
+  const row = e.target.closest(".segrow"); if (!row || dragFrom == null) return;
+  const to = +row.dataset.i;
+  if (to !== dragFrom) {
+    const from = dragFrom;
+    editSegments(() => {
+      const [m] = cfg.segments.splice(from, 1);
+      cfg.segments.splice(to, 0, m);
+    }, len => moveMap(len, from, to));
+  }
+  dragFrom = null; segRows();
+});
+$("#seglist").addEventListener("dragend", () => {
+  dragFrom = null;
+  $$(".segrow").forEach(r => r.classList.remove("drag"));
+});
+
+$("#addseg").addEventListener("click", () => {
+  cfg.segments.push({ title: "New segment", min: 15, brk: false, note: "" });
+  save(); segRows();
+});
+$("#loadsn").addEventListener("click", () => {
+  const msg = current().state === "run"
+    ? "The night is already running. Replacing the schedule wipes everything that has "
+      + "happened so far and restarts from the planned times. Continue?"
+    : "Replace tonight's schedule with the standard social night?";
+  if (!confirm(msg)) return;
+  cfg.segments = STD_NIGHT.map(s => Object.assign({}, s));
+  cfg.overrides = {}; cfg.extra = {}; cfg.anchorSlip = 0;
+  save(); segRows();
+});
+
+// Ops codes (SN20260902 and friends) are internal — ticketing and filing only.
+// They get stripped on the way in AND on the way out, so a code pasted from the
+// ops sheet can never end up on a screen in front of the room.
+const CODE_RE = /\b(?:SN|NN|MK|MM|EX|PG|PR|PH|OFF)\d{8}[A-Z]?\b/gi;
+const stripCode = s => String(s == null ? "" : s)
+  .replace(CODE_RE, "")
+  .replace(/\s{2,}/g, " ")
+  .replace(/^[\s·|,\u2013\u2014-]+|[\s·|,\u2013\u2014-]+$/g, "")
+  .trim();
+
+/* ── Reading a pasted run of show ────────────────────────────────────────
+   Notion, Docs and Sheets all copy as lines of text, so the shortest path from
+   "it lives in Notion" to "it is on the screen" is a paste box, not an API key
+   in a file that gets emailed around.                                        */
+const TIME_HEAD  = /^\s*\[?\s*(\d{1,2})[:.h](\d{2})\s*(a\.?m\.?|p\.?m\.?)?\s*\]?/i;
+const TIME_CELL  = /^[\[(]?\s*(\d{1,2})[:.h](\d{2})\s*(a\.?m\.?|p\.?m\.?)?\s*[\])]?$/i;
+const DUR_CELL   = /^(\d{1,3}(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)?\.?$/i;
+const TAIL_DUR   = /[|,;·–—-]\s*(\d{1,3})\s*(?:min(?:ute)?s?|m)?\s*$/i;
+const RANGE_SEP  = /^\s*(?:[-–—]|to|hasta|until)\s*/i;
+const LEAD_JUNK  = /^\s*(?:[|>•●▪◦*+]|[-–—](?=\s)|\d{1,2}[.)](?=\s))\s*/;
+const HEADERS = ["time", "start", "end", "segment", "item", "what", "activity", "title",
+                 "length", "duration", "mins", "minutes", "notes", "note", "owner", "lead"];
+const BREAKISH = /\b(break|intermission|interval|receso|descanso|coffee|lunch|dinner)\b/i;
+
+const to24 = (h, mer) => mer === "p" ? (h < 12 ? h + 12 : h)
+                       : mer === "a" ? (h === 12 ? 0 : h) : h;
+
+// "1 hour", "90 min", "15", "1.5 hrs" -> minutes
+function readDuration(s) {
+  const m = String(s).trim().match(DUR_CELL);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  const unit = (m[2] || "min").toLowerCase();
+  return Math.round(unit[0] === "h" ? n * 60 : n);
+}
+
+/* A bare "9:30" following "9:00 PM" means half nine at night, not half nine in
+   the morning. With no am/pm, take whichever reading moves forward from the
+   previous row — which is what anyone reading the sheet would assume. */
+function resolveClock(h, mm, mer, prevAt) {
+  if (mer) return to24(h, mer) * 60 + mm;
+  if (h > 12) return h * 60 + mm;                       // unambiguous 24-hour
+  const a = h * 60 + mm, b = ((h % 12) + 12) * 60 + mm;
+  if (prevAt == null) return a;
+  const fwd = x => { const d = x - prevAt; return d < 0 ? d + 1440 : d; };
+  return fwd(a) <= fwd(b) ? a : b;
+}
+
+function readParts(s, re) {
+  const m = String(s).match(re);
+  if (!m) return null;
+  const h = +m[1], mm = +m[2];
+  if (h > 23 || mm > 59) return null;
+  return { h, mm, mer: (m[3] || "").toLowerCase().replace(/\./g, "")[0] || "", len: m[0].length };
+}
+const readClockCell = s => readParts(String(s).trim(), TIME_CELL);
+const readClockHead = s => readParts(s, TIME_HEAD);
+
+function parseSchedule(text) {
+  let rows = [];
+  let prevAt = null;
+
+  for (const raw of String(text).split("\n")) {
+    let line = raw.replace(/\t/g, " | ").trim();
+    if (!line || /^[-=_|\s]+$/.test(line)) continue;      // blank lines and table rules
+    let before; do { before = line; line = line.replace(LEAD_JUNK, ""); } while (line !== before);
+    if (!line) continue;
+
+    let cells = line.split("|").map(c => c.trim()).filter(Boolean);
+    if (!cells.length) continue;
+    if (cells.every(c => HEADERS.includes(c.toLowerCase()))) continue;   // header row
+
+    let at = null, endsAt = null, durHint = null;
+
+    // A whole cell that is just a time — the shape Notion exports
+    const cellTime = readClockCell(cells[0]);
+    if (cellTime) { at = resolveClock(cellTime.h, cellTime.mm, cellTime.mer, prevAt); cells.shift(); }
+    else {                                                // "6:30 PM Doors open"
+      const head = readClockHead(cells[0]);
+      if (head) {
+        let rest = cells[0].slice(head.len);
+        const sep = rest.match(RANGE_SEP);
+        const second = sep ? readClockHead(rest.slice(sep[0].length)) : null;
+        // "6:30 - 7:00 PM" marks only the end, but means the afternoon for both
+        const startMer = head.mer || (second ? second.mer : "");
+        at = resolveClock(head.h, head.mm, startMer, prevAt);
+        if (second) {                                     // a range states its own end
+          endsAt = resolveClock(second.h, second.mm, second.mer || startMer, at);
+          rest = rest.slice(sep[0].length + second.len);
+        }
+        cells[0] = rest.replace(/^[\s|,;·:–—-]+/, "");
+        if (!cells[0]) cells.shift();
+      }
+    }
+    if (at != null) prevAt = at;
+
+    // A duration column, either side of the segment name
+    if (cells.length >= 2) {
+      const lead = readDuration(cells[0]);
+      if (lead != null) { durHint = lead; cells.shift(); }
+      else {
+        const tail = readDuration(cells[cells.length - 1]);
+        if (tail != null) { durHint = tail; cells.pop(); }
+      }
+    }
+
+    let title = (cells[0] || "").trim();
+    if (durHint == null) {                                // "Main talk — 25 min"
+      const m = title.match(TAIL_DUR);
+      if (m) { durHint = +m[1]; title = title.replace(TAIL_DUR, "").trim(); }
+    }
+    title = title.replace(/^[\s|,;·:–—-]+|[\s|,;·–—-]+$/g, "").trim();
+    if (!title) continue;
+    if (at == null && durHint == null && HEADERS.includes(title.toLowerCase())) continue;
+
+    rows.push({ title, at, endsAt, durHint, note: "" });
+  }
+  if (!rows.length) return null;
+
+  const timed = rows.filter(r => r.at != null).length;
+
+  /* In a real run of show the sub-lines under a block ("Guests arrive",
+     "Appetizers") carry no time and no length. Making them segments would
+     invent durations and shove the whole night sideways, so they become the
+     note on the block above — which is where the screen already shows them. */
+  if (timed >= 2) {
+    const folded = [];
+    for (const r of rows) {
+      if (r.at == null && r.durHint == null && r.endsAt == null && folded.length) {
+        const prev = folded[folded.length - 1];
+        prev.note = prev.note ? `${prev.note} · ${r.title}` : r.title;
+      } else folded.push(r);
+    }
+    rows = folded;
+  }
+
+  /* Where a row has a time and so does the next one, the gap between them is
+     the truth: it is what the times on screen will actually say. A stated
+     range still wins, because it names its own end; a duration column loses,
+     because in a hand-kept sheet it is the column that drifts. */
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i], next = rows[i + 1];
+    let min = null;
+    if (r.endsAt != null && r.at != null) { min = r.endsAt - r.at; if (min < 0) min += 1440; }
+    else if (r.at != null && next && next.at != null) {
+      min = next.at - r.at; if (min < 0) min += 1440;
+    }
+    if (min == null) min = r.durHint;
+    r.min = Math.max(0, min == null ? 15 : min);
+  }
+
+  const segments = rows.map(r => ({
+    title: r.title,
+    min: r.min,
+    brk: BREAKISH.test(r.title),
+    note: r.note
+  }));
+  const start = rows[0].at == null ? null
+    : `${String(Math.floor(rows[0].at / 60)).padStart(2, "0")}:${String(rows[0].at % 60).padStart(2, "0")}`;
+  return { segments, start, notes: rows.filter(r => r.note).length };
+}
+
+// Say what it understood before anything is replaced
+function pastePreview() {
+  const box = $("#pastebox"), note = $("#parsenote");
+  if (!box.value.trim()) { note.textContent = ""; note.classList.remove("warn"); return; }
+  const got = parseSchedule(box.value);
+  if (!got) { note.textContent = "Nothing readable yet."; note.classList.add("warn"); return; }
+  note.classList.remove("warn");
+  const total = got.segments.reduce((a, s) => a + s.min, 0);
+  const brk = got.segments.filter(s => s.brk).length;
+  note.textContent = `${got.segments.length} segments, ${Math.floor(total / 60)}h ${total % 60}m`
+    + (got.start ? `, starting ${got.start}` : "")
+    + (brk ? `, ${brk} break${brk > 1 ? "s" : ""}` : "")
+    + (got.notes ? `, ${got.notes} with a note` : "");
+}
+$("#pastebox").addEventListener("input", pastePreview);
+
+$("#parsebtn").addEventListener("click", () => {
+  const got = parseSchedule($("#pastebox").value);
+  if (!got) { $("#parsenote").textContent = "Nothing readable in there."; return; }
+  if (!confirm(`Replace the ${cfg.segments.length} segments below with the `
+             + `${got.segments.length} read from that paste? You can still edit them by hand `
+             + `afterwards.`)) return;
+  cfg.segments = got.segments;
+  if (got.start) cfg.start = got.start;
+  cfg.overrides = {}; cfg.extra = {}; cfg.anchorSlip = 0;
+  save(); segRows();
+  $("#pastebox").value = "";
+  $("#pastewrap").open = false;                 // hand the list straight back
+  $("#parsenote").textContent = `Read ${got.segments.length} segments — edit them below.`;
+});
+
+const parseUpcoming = txt => txt.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+  const p = l.split("|").map(x => x.trim());
+  return { when: stripCode(p[0]), what: stripCode(p[1]), meta: stripCode(p[2]) };
+}).filter(e => e.when || e.what);
+const upcomingText = () => cfg.upcoming.map(e => [e.when, e.what, e.meta].join(" | ")).join("\n");
+
+function spRows() {
+  $("#splist").innerHTML = cfg.sponsors.map((s, i) =>
+    `<div class="spitem" data-i="${i}">
+       <div class="plate"><img src="${s.src}" alt="${esc(s.name)}"></div>
+       <input type="text" data-f="name" value="${esc(s.name)}" placeholder="Partner name">
+       <label class="shw"><input type="checkbox" data-f="show" ${s.show ? "checked" : ""}>
+         <span>Show name</span></label>
+       <button data-i="${i}" title="Remove">&times;</button>
+     </div>`
+  ).join("") || `<p class="hint">No partner logos yet.</p>`;
+  const kb = Math.round(JSON.stringify(cfg).length / 1024);
+  const q = $("#quota");
+  q.textContent = `Saved data: ${kb} KB of the browser's roughly 5000 KB budget.`;
+  q.classList.toggle("warn", kb > 4000);
+}
+$("#splist").addEventListener("click", e => {
+  if (e.target.tagName !== "BUTTON") return;
+  cfg.sponsors.splice(+e.target.dataset.i, 1);
+  autoArrangeSponsors();
+  save(); spRows();
+});
+$("#splist").addEventListener("input", e => {
+  const tile = e.target.closest(".spitem"); if (!tile) return;
+  const f = e.target.dataset.f; if (!f) return;
+  cfg.sponsors[+tile.dataset.i][f] = f === "show" ? e.target.checked : e.target.value;
+  save();
+});
+
+/* Placement defaults. An event has one partner far more often than four, so the
+   single-logo case is deliberately large rather than a polite thumbnail. Values
+   are percentages of the partner panel, which is what the Arrange stage edits. */
+const SPONSOR_LAYOUTS = {
+  1: [[50, 50, 52, 74]],
+  2: [[27, 50, 38, 62], [73, 50, 38, 62]],
+  3: [[18, 50, 28, 54], [50, 50, 28, 54], [82, 50, 28, 54]]
+};
+function autoArrangeSponsors() {
+  const n = cfg.sponsors.length;
+  if (!n) return;
+  const preset = SPONSOR_LAYOUTS[n];
+  if (preset) {
+    cfg.sponsors.forEach((s, i) => { [s.x, s.y, s.w, s.h] = preset[i]; });
+    return;
+  }
+  const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+  cfg.sponsors.forEach((s, i) => {
+    const c = i % cols, r = Math.floor(i / cols);
+    s.x = ((c + 0.5) / cols) * 100;
+    s.y = ((r + 0.5) / rows) * 100;
+    s.w = (86 / cols);
+    s.h = (82 / rows);
+  });
+}
+const hasLayout = s => [s.x, s.y, s.w, s.h].every(v => typeof v === "number" && isFinite(v));
+
+// Logos are resized on the way in so a few of them cannot blow the storage budget
+function shrink(file) {
+  return new Promise(res => {
+    const fr = new FileReader();
+    fr.onerror = () => res(null);
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => res(null);
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const k = Math.min(1, 480 / w, 260 / h);
+        w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        try { res(cv.toDataURL("image/png")); } catch (_) { res(null); }
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+/* A QR must stay crisp — smooth downscaling blurs the module edges and can push
+   a code below the threshold a phone camera will read across a room. So: keep an
+   SVG as-is, keep a bitmap untouched if it is already a sensible size, and only
+   resample very large ones with smoothing off. */
+function readQrImage(file) {
+  return new Promise(res => {
+    const fr = new FileReader();
+    fr.onerror = () => res(null);
+    fr.onload = () => {
+      const src = String(fr.result);
+      if (file.type === "image/svg+xml") return res(src);       // vector: perfect at any size
+      const img = new Image();
+      img.onerror = () => res(null);
+      img.onload = () => {
+        const MAX = 1000;
+        if (img.width <= MAX && img.height <= MAX && src.length < 900000) return res(src);
+        const k = Math.min(MAX / img.width, MAX / img.height);
+        const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        const ctx = cv.getContext("2d");
+        ctx.imageSmoothingEnabled = false;                      // hard edges, not grey mush
+        ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, w, h);    // flatten any transparency
+        ctx.drawImage(img, 0, 0, w, h);
+        try { res(cv.toDataURL("image/png")); } catch (_) { res(null); }
+      };
+      img.src = src;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+function qrThumb() {
+  const box = $("#qrthumb"), note = $("#qrnote");
+  if (cfg.qr.img) {
+    box.classList.add("on");
+    box.innerHTML = `<img src="${cfg.qr.img}" alt="Uploaded QR code">`;
+    note.textContent = `Using your uploaded image (${Math.round(cfg.qr.img.length / 1024)} KB).`;
+  } else {
+    const url = (cfg.qr.url || "").trim();
+    box.classList.toggle("on", !!url);
+    try { box.innerHTML = url ? QR.svg(url) : ""; } catch (_) { box.innerHTML = ""; }
+    note.textContent = url ? "Generated from the link above." : "";
+  }
+}
+
+$("#f-qrimg").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  $("#qrnote").textContent = "Reading…";
+  const d = await readQrImage(f);
+  if (!d) { $("#qrnote").textContent = "Could not read that image."; return; }
+  cfg.qr.img = d;
+  save(); qrThumb(); rt.qrCache = null; tick();
+});
+
+$("#qrclear").addEventListener("click", () => {
+  if (!cfg.qr.img) return;
+  cfg.qr.img = "";
+  save(); qrThumb(); rt.qrCache = null; tick();
+});
+
+$("#f-sponsor").addEventListener("change", async e => {
+  for (const f of Array.from(e.target.files || [])) {
+    const d = await shrink(f);
+    if (d) cfg.sponsors.push({ src: d, name: f.name.replace(/\.[^.]+$/, ""), show: false });
+  }
+  autoArrangeSponsors();            // the composition changed, so re-space them
+  e.target.value = ""; save(); spRows();
+});
+
+/* ── Arrange: drag and resize the partner panel against a scale model of the
+   screen. Positions are percentages of the panel, so they hold at any
+   resolution — the same numbers drive the real board.                     ── */
+let arSel = -1;
+
+function arRender() {
+  $("#arfield").innerHTML = cfg.sponsors.map((s, i) =>
+    `<div class="ar${i === arSel ? " sel" : ""}" data-i="${i}"
+          style="left:${s.x}%;top:${s.y}%;width:${s.w}%;height:${s.h}%">
+       <div class="plate"><img src="${s.src}" alt="${esc(s.name)}" draggable="false"></div>
+       ${s.show && s.name ? `<span class="cap">${esc(s.name)}</span>` : ""}
+       <span class="grip"></span>
+     </div>`).join("");
+  $("#arhint").textContent = cfg.sponsors.length
+    ? (arSel < 0 ? "Select a logo to resize it."
+                 : `${cfg.sponsors[arSel].name || "Logo " + (arSel + 1)} selected.`)
+    : "No logos yet — add one on the Screen panels tab.";
+}
+
+function arSelect(i) {
+  $$("#arfield .ar").forEach(el => el.classList.toggle("sel", +el.dataset.i === i));
+  $("#arhint").textContent = i < 0 ? "Select a logo to resize it."
+    : `${cfg.sponsors[i].name || "Logo " + (i + 1)} selected — drag it, or use its corner.`;
+}
+
+function openArrange() {
+  if (cfg.sponsors.some(s => !hasLayout(s))) autoArrangeSponsors();
+  arSel = cfg.sponsors.length ? 0 : -1;
+  arRender();
+  $("#arrange").classList.add("on");
+}
+function closeArrange() {
+  $("#arrange").classList.remove("on");
+  save(); markSaved(); rt.qrCache = null;
+  $("#sponsors").dataset.sig = "";           // force the real panel to redraw
+  tick();
+}
+
+$("#arrangebtn").addEventListener("click", openArrange);
+$("#ardone").addEventListener("click", closeArrange);
+$("#arauto").addEventListener("click", () => { autoArrangeSponsors(); save(); arRender(); });
+
+function arScale(mult) {
+  if (arSel < 0) return;
+  const s = cfg.sponsors[arSel];
+  s.w = Math.max(6, Math.min(100, s.w * mult));
+  s.h = Math.max(6, Math.min(100, s.h * mult));
+  save(); arRender();
+}
+$("#arbigger").addEventListener("click", () => arScale(1.12));
+$("#arsmaller").addEventListener("click", () => arScale(1 / 1.12));
+
+let arDrag = null;
+$("#arfield").addEventListener("pointerdown", e => {
+  const el = e.target.closest(".ar"); if (!el) { arSel = -1; arRender(); return; }
+  const i = +el.dataset.i;
+  arSel = i;
+  arSelect(i);                       // class swap only — do not rebuild mid-gesture
+  const s = cfg.sponsors[i];
+  arDrag = {
+    i, field: $("#arfield").getBoundingClientRect(),
+    mode: e.target.classList.contains("grip") ? "size" : "move",
+    px: e.clientX, py: e.clientY,
+    x0: s.x, y0: s.y, w0: s.w, h0: s.h
+  };
+  el.classList.add("drag");
+  try { el.setPointerCapture(e.pointerId); } catch (_) {}
+  e.preventDefault();
+});
+
+$("#arfield").addEventListener("pointermove", e => {
+  if (!arDrag) return;
+  const s = cfg.sponsors[arDrag.i], f = arDrag.field;
+  const dx = (e.clientX - arDrag.px) / f.width * 100;
+  const dy = (e.clientY - arDrag.py) / f.height * 100;
+  if (arDrag.mode === "move") {
+    s.x = Math.max(2, Math.min(98, arDrag.x0 + dx));
+    s.y = Math.max(2, Math.min(98, arDrag.y0 + dy));
+  } else {
+    // the grip sits at the corner, so its travel is half the box's growth
+    const k = Math.max(0.15, 1 + (dx / Math.max(4, arDrag.w0 / 2)) * 0.5);
+    s.w = Math.max(6, Math.min(100, arDrag.w0 * k));
+    s.h = Math.max(6, Math.min(100, arDrag.h0 * k));
+  }
+  const live = $(`#arfield .ar[data-i="${arDrag.i}"]`);
+  if (live) {
+    live.style.left = s.x + "%"; live.style.top = s.y + "%";
+    live.style.width = s.w + "%"; live.style.height = s.h + "%";
+  }
+});
+
+function arEnd() {
+  if (!arDrag) return;
+  const live = $(`#arfield .ar[data-i="${arDrag.i}"]`);
+  if (live) live.classList.remove("drag");
+  arDrag = null; save(); markSaved();
+}
+$("#arfield").addEventListener("pointerup", arEnd);
+$("#arfield").addEventListener("pointercancel", arEnd);
+
+/* ── Show control ────────────────────────────────────────────────────────
+   Presentations, media and music. The files sit in IndexedDB; the config
+   remembers only ids and order, so a night's running order survives a refresh
+   while the decks themselves never go near localStorage. */
+
+/* One object URL per file per window. The thumbnail strips redraw constantly
+   and each redraw would otherwise mint — and leak — a fresh URL per slide. */
+const urls = new Map();
+function urlFor(id) {
+  if (!id) return Promise.resolve(null);
+  if (urls.has(id)) return Promise.resolve(urls.get(id));
+  return mediaGet(id).then(rec => {
+    if (!rec || !rec.blob) return null;
+    const u = URL.createObjectURL(rec.blob);
+    urls.set(id, u);
+    return u;
+  }).catch(() => null);
+}
+function dropFile(id) {
+  const u = urls.get(id);
+  if (u) { try { URL.revokeObjectURL(u); } catch (_) {} urls.delete(id); }
+  if (knownIds) knownIds.delete(id);
+  mediaDel(id).catch(() => {});
+}
+const storeFile = f => {
+  const id = uid();
+  return mediaPut({ id, name: f.name, type: f.type, size: f.size, blob: f })
+    .then(() => { if (knownIds) knownIds.add(id); return id; });
+};
+// Slide 9 must not sort after slide 10, and file pickers hand them over in
+// whatever order the OS felt like.
+const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
+
+const fileErr = e => {
+  alert("The browser would not store that.\n\n" + (e && e.name === "QuotaExceededError"
+    ? "There is no room left. Delete a deck or a video you no longer need."
+    : String(e && e.message || e)));
+};
+
+/* ── What is on air ──────────────────────────────────────────────────── */
+const airDeckId = () => (rt.air && rt.air.key || "").split(":")[0];
+
+function airLabel() {
+  const a = rt.air;
+  if (!a || !a.key) return "";
+  const d = cfg.decks.find(x => x.id === airDeckId());
+  if (d) return d.kind === "pdf" ? d.name
+       : `${d.name} — slide ${(+a.key.split(":")[1] || 0) + 1} of ${d.slides.length}`;
+  const m = cfg.media.find(x => "m:" + x.id === a.key || "reel:" + x.id === a.key);
+  if (m) return (a.key.startsWith("reel:") ? "Photo reel — " : "") + m.name;
+  return "media";
+}
+
+function goAir(air) {
+  rt.air = air;
+  publishLive(); tick(); paintShow();
+}
+function airOff() {
+  reelStop();
+  rt.air = null;
+  publishLive(); tick(); paintShow();
+}
+
+function renderAirBar() {
+  const bar = $("#airbar");
+  const on = !!(rt.air && rt.air.key);
+  bar.classList.toggle("on", on);
+  if (on) {
+    $("#airwhat").innerHTML = `On the wall now: <b>${esc(airLabel())}</b>`;
+    $("#airoverlay").checked = !!rt.air.overlay;
+  }
+}
+
+/* ── Presentations ───────────────────────────────────────────────────── */
+let dkSel = null;                   // { id, i } — what the operator is looking at
+
+const curDeck = () => dkSel && cfg.decks.find(d => d.id === dkSel.id) || null;
+
+function deckNumber() {
+  let n = cfg.decks.length + 1;
+  while (cfg.decks.some(d => d.name === "Deck " + n)) n++;
+  return "Deck " + n;
+}
+
+function addSlideDeck(files) {
+  const list = Array.from(files).filter(f => /^image\//.test(f.type)).sort(byName);
+  if (!list.length) return;
+  Promise.all(list.map(storeFile)).then(ids => {
+    const d = { id: uid(), name: deckNumber(), speaker: "", seg: null,
+                kind: "slides", slides: ids, pdf: null, file: "" };
+    cfg.decks.push(d);
+    dkSel = { id: d.id, i: 0 };
+    save(); paintShow(); markSaved(`${ids.length} slides added`);
+  }).catch(fileErr);
+}
+
+function addPdfDeck(files) {
+  const list = Array.from(files);
+  Promise.all(list.map(f => storeFile(f).then(id => ({ id, f })))).then(recs => {
+    recs.forEach(({ id, f }) => cfg.decks.push({
+      id: uid(), name: f.name.replace(/\.pdf$/i, ""), speaker: "", seg: null,
+      kind: "pdf", slides: [], pdf: id, file: f.name
+    }));
+    const last = cfg.decks[cfg.decks.length - 1];
+    if (last) dkSel = { id: last.id, i: 0 };
+    save(); paintShow(); markSaved(`${recs.length} added`);
+  }).catch(fileErr);
+}
+
+/* A .pptx or .key is catalogued rather than opened. Nothing in a browser can
+   lay one out, and a deck that quietly does not exist until the speaker walks
+   up is worse than one listed here with a warning against it. */
+function addRawDeck(files) {
+  Array.from(files).forEach(f => cfg.decks.push({
+    id: uid(), name: f.name.replace(/\.[^.]+$/, ""), speaker: "", seg: null,
+    kind: "raw", slides: [], pdf: null, file: f.name
+  }));
+  save(); paintShow();
+  markSaved("Logged — needs converting");
+}
+
+function deckRows() {
+  const box = $("#decklist");
+  if (!cfg.decks.length) {
+    box.innerHTML = `<p class="sub" style="margin:14px 0 0">No decks loaded.</p>`;
+    return;
+  }
+  const opts = i => cfg.segments.map((sg, k) =>
+    `<option value="${k}"${i === k ? " selected" : ""}>${esc(sg.title)}</option>`).join("");
+  box.innerHTML = cfg.decks.map(d => {
+    const live = d.id === airDeckId();
+    const gone = d.kind === "slides" ? d.slides.some(x => !haveFile(x))
+               : d.kind === "pdf"    ? !haveFile(d.pdf) : false;
+    const tag = gone ? "files missing"
+              : d.kind === "slides" ? `${d.slides.length} slides`
+              : d.kind === "pdf"    ? "PDF" : "needs converting";
+    return `<div class="mrow${dkSel && dkSel.id === d.id ? " sel" : ""}${live ? " live" : ""}" data-id="${d.id}">
+      <span class="tag${d.kind === "raw" || live || gone ? " hot" : ""}">${tag}</span>
+      <input type="text" data-f="name" value="${esc(d.name)}">
+      <input type="text" class="spk" data-f="speaker" placeholder="Speaker" value="${esc(d.speaker || "")}">
+      <select data-f="seg"><option value="">— any time —</option>${opts(d.seg)}</select>
+      <button class="btn ghost pv"${d.kind === "raw" ? " disabled" : ""}>Preview</button>
+      <button class="ic del" title="Remove">&times;</button>
+    </div>`;
+  }).join("");
+}
+
+function dkShow() {
+  const pic = $("#dkpic"), pos = $("#dkpos"), th = $("#dkthumbs");
+  const d = curDeck();
+  if (!d || d.kind === "raw") {
+    pic.innerHTML = `<span class="empty">${d ? "This one has to be converted first"
+                                             : "Choose a deck to preview it"}</span>`;
+    pos.textContent = "—"; th.innerHTML = "";
+    return;
+  }
+  if (d.kind === "pdf") {
+    pos.textContent = "PDF";
+    th.innerHTML = "";
+    urlFor(d.pdf).then(u => {
+      if (!u || !dkSel || dkSel.id !== d.id) return;
+      pic.innerHTML = "";
+      const e = document.createElement("embed");
+      e.type = "application/pdf";
+      e.src = u + "#toolbar=0&navpanes=0&scrollbar=0&view=Fit";
+      pic.appendChild(e);
+    });
+    return;
+  }
+  const n = d.slides.length;
+  dkSel.i = Math.max(0, Math.min(dkSel.i, n - 1));
+  pos.textContent = n ? `${dkSel.i + 1} / ${n}` : "—";
+  urlFor(d.slides[dkSel.i]).then(u => {
+    if (!u || !dkSel || dkSel.id !== d.id) return;
+    pic.innerHTML = "";
+    const im = document.createElement("img");
+    im.alt = ""; im.src = u;
+    pic.appendChild(im);
+  });
+  Promise.all(d.slides.map(urlFor)).then(list => {
+    if (!dkSel || dkSel.id !== d.id) return;
+    th.innerHTML = "";
+    list.forEach((u, k) => {
+      if (!u) return;
+      const im = document.createElement("img");
+      im.src = u; im.alt = ""; im.dataset.k = k;
+      if (k === dkSel.i) im.className = "on";
+      th.appendChild(im);
+    });
+    const on = th.querySelector("img.on");
+    if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+}
+
+/* Moving through a deck that is already on the wall moves the wall with it.
+   Moving through one that is not is private to this window — which is the
+   whole point of being able to line up the next speaker mid-talk. */
+function dkStep(n) {
+  const d = curDeck();
+  if (!d || d.kind !== "slides" || !d.slides.length) return;
+  dkSel.i = Math.max(0, Math.min(dkSel.i + n, d.slides.length - 1));
+  if (d.id === airDeckId()) dkSend(); else { dkShow(); deckRows(); }
+}
+
+function dkSend() {
+  const d = curDeck();
+  if (!d || d.kind === "raw") return;
+  const common = { overlay: !!cfg.show.overlay, sound: cfg.show.sound };
+  reelStop();
+  if (d.kind === "pdf") goAir(Object.assign({ key: d.id + ":pdf", kind: "pdf", id: d.pdf }, common));
+  else if (d.slides.length)
+    goAir(Object.assign({ key: d.id + ":" + dkSel.i, kind: "img", id: d.slides[dkSel.i] }, common));
+}
+
+/* A presenter's clicker sends PageUp/PageDown, so this has to move the deck
+   that is actually on the wall — not the one being previewed. */
+function airStep(n) {
+  const d = cfg.decks.find(x => x.id === airDeckId());
+  if (!d || d.kind !== "slides" || !d.slides.length) return;
+  const cur = +(rt.air.key.split(":")[1] || 0);
+  const i = Math.max(0, Math.min(cur + n, d.slides.length - 1));
+  if (i === cur) return;
+  if (dkSel && dkSel.id === d.id) dkSel.i = i;
+  goAir(Object.assign({}, rt.air, { key: d.id + ":" + i, id: d.slides[i] }));
+}
+
+/* ── Media ───────────────────────────────────────────────────────────── */
+let mdSel = null;
+
+const curMedia = () => mdSel && cfg.media.find(m => m.id === mdSel) || null;
+
+function addMedia(files, kind) {
+  const list = Array.from(files).sort(byName);
+  if (!list.length) return;
+  Promise.all(list.map(f => storeFile(f).then(id => ({ id, f })))).then(recs => {
+    recs.forEach(({ id, f }) => cfg.media.push({
+      id: uid(), name: f.name.replace(/\.[^.]+$/, ""), kind, mid: id, size: f.size
+    }));
+    const last = cfg.media[cfg.media.length - 1];
+    if (last) mdSel = last.id;
+    save(); paintShow(); markSaved(`${recs.length} added`);
+  }).catch(fileErr);
+}
+
+function mediaRows() {
+  const box = $("#medialist");
+  if (!cfg.media.length) {
+    box.innerHTML = `<p class="sub" style="margin:14px 0 0">Nothing loaded.</p>`;
+    return;
+  }
+  box.innerHTML = cfg.media.map((m, i) => {
+    const live = rt.air && (rt.air.key === "m:" + m.id || rt.air.key === "reel:" + m.id);
+    return `<div class="mrow${mdSel === m.id ? " sel" : ""}${live ? " live" : ""}" draggable="true" data-id="${m.id}">
+      <div class="hnd" title="Drag to reorder">&#8942;&#8942;</div>
+      <span class="tag${live || !haveFile(m.mid) ? " hot" : ""}">${
+        !haveFile(m.mid) ? "file missing" : m.kind === "video" ? "video" : "photo"}</span>
+      <input type="text" data-f="name" value="${esc(m.name)}">
+      <span class="mt">${fmtSize(m.size)}</span>
+      <button class="ic up" title="Move up"${i ? "" : " disabled"}>&#8593;</button>
+      <button class="ic dn" title="Move down"${i < cfg.media.length - 1 ? "" : " disabled"}>&#8595;</button>
+      <button class="btn ghost pv">Preview</button>
+      <button class="ic del" title="Remove">&times;</button>
+    </div>`;
+  }).join("");
+}
+
+const fmtSize = b => !b ? "" : b > 1048576 ? (b / 1048576).toFixed(1) + " MB"
+                                           : Math.max(1, Math.round(b / 1024)) + " KB";
+
+function mdShow() {
+  const pic = $("#mdpic"), pos = $("#mdpos"), th = $("#mdthumbs");
+  const m = curMedia();
+  const vid = !!(m && m.kind === "video");
+  $("#mdplay").classList.toggle("hide", !vid);
+  $("#mdback").classList.toggle("hide", !vid);
+  if (!m) {
+    pic.innerHTML = `<span class="empty">Choose a photo or clip</span>`;
+    pos.textContent = "—"; th.innerHTML = ""; return;
+  }
+  pos.textContent = `${cfg.media.indexOf(m) + 1} / ${cfg.media.length}`;
+  urlFor(m.mid).then(u => {
+    if (!u || mdSel !== m.id) return;
+    pic.innerHTML = "";
+    const el = document.createElement(vid ? "video" : "img");
+    el.src = u; el.alt = "";
+    if (vid) { el.controls = true; el.muted = true; el.playsInline = true; }
+    pic.appendChild(el);
+  });
+  Promise.all(cfg.media.map(x => x.kind === "image" ? urlFor(x.mid) : null)).then(list => {
+    th.innerHTML = "";
+    list.forEach((u, k) => {
+      if (!u) return;
+      const im = document.createElement("img");
+      im.src = u; im.alt = ""; im.dataset.id = cfg.media[k].id;
+      if (cfg.media[k].id === mdSel) im.className = "on";
+      th.appendChild(im);
+    });
+  });
+}
+
+function mdStep(n) {
+  if (!cfg.media.length) return;
+  const i = Math.max(0, Math.min(cfg.media.findIndex(m => m.id === mdSel) + n,
+                                 cfg.media.length - 1));
+  mdSel = cfg.media[i].id;
+  mdShow(); mediaRows();
+}
+
+let cmdSeq = 0;
+function mdSend() {
+  const m = curMedia();
+  if (!m) return;
+  reelStop();
+  const air = { key: "m:" + m.id, kind: m.kind === "video" ? "video" : "img", id: m.mid,
+                overlay: !!cfg.show.overlay, sound: cfg.show.sound, loop: !!cfg.show.loop };
+  if (m.kind === "video") air.cmd = { n: ++cmdSeq, act: "play", t: 0 };
+  goAir(air);
+}
+
+function mdCmd(act, t) {
+  if (!rt.air || rt.air.kind !== "video") return;
+  rt.air = Object.assign({}, rt.air, { cmd: { n: ++cmdSeq, act, t } });
+  publishLive(); tick();
+}
+
+/* ── The photo reel ──────────────────────────────────────────────────────
+   Driven from this window rather than from a timestamp both windows work out
+   for themselves, so there is one clock deciding when the picture changes and
+   the second screen simply follows the id. */
+let reelT = null, reelI = 0;
+function reelStop() { clearInterval(reelT); reelT = null; $("#reelstop").disabled = true; }
+function reelStart() {
+  const shots = cfg.media.filter(m => m.kind === "image");
+  if (!shots.length) { alert("Add some photos first."); return; }
+  reelI = 0;
+  const put = () => {
+    const m = shots[reelI];
+    goAir({ key: "reel:" + m.id, kind: "img", id: m.mid,
+            overlay: !!cfg.show.overlay, sound: cfg.show.sound });
+  };
+  put();
+  clearInterval(reelT);
+  reelT = setInterval(() => {
+    reelI++;
+    if (reelI >= shots.length) {
+      if (!cfg.show.loop) { reelStop(); return; }
+      reelI = 0;
+    }
+    put();
+  }, Math.max(2, +cfg.show.interval || 8) * 1000);
+  $("#reelstop").disabled = false;
+}
+
+/* ── Music ───────────────────────────────────────────────────────────── */
+const YT_RE = /(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/;
+function ytId(line) {
+  const t = String(line).trim();
+  if (!t) return null;
+  if (/^[A-Za-z0-9_-]{11}$/.test(t)) return t;
+  const m = t.match(YT_RE);
+  return m ? m[1] : null;
+}
+
+function ytAdd() {
+  const box = $("#ytpaste");
+  let added = 0, bad = 0;
+  box.value.split(/\r?\n/).forEach(l => {
+    if (!l.trim()) return;
+    const v = ytId(l);
+    if (!v) { bad++; return; }
+    if (cfg.music.some(m => m.vid === v)) return;
+    cfg.music.push({ id: uid(), vid: v, title: "" });
+    added++;
+  });
+  box.value = "";
+  save(); musicRows();
+  markSaved(added + " queued" + (bad ? `, ${bad} not a YouTube link` : ""));
+  if (added) ytNames();
+}
+
+function musicRows() {
+  const box = $("#ytlist");
+  box.innerHTML = !cfg.music.length
+    ? `<p class="sub" style="margin:14px 0 0">Queue is empty.</p>`
+    : cfg.music.map((m, i) => `<div class="mrow" draggable="true" data-id="${m.id}" title="${esc(m.vid)}">
+        <div class="hnd" title="Drag to reorder">&#8942;&#8942;</div>
+        <span class="tag">${i + 1}</span>
+        <input type="text" class="spk" data-f="artist" placeholder="Artist" value="${esc(m.artist || "")}">
+        <input type="text" data-f="song" placeholder="${esc(m.song ? "" : m.vid)}" value="${esc(m.song || "")}">
+        <button class="ic up"${i ? "" : " disabled"}>&#8593;</button>
+        <button class="ic dn"${i < cfg.music.length - 1 ? "" : " disabled"}>&#8595;</button>
+        <button class="ic del">&times;</button>
+      </div>`).join("");
+  const n = cfg.music.length;
+  const unnamed = cfg.music.filter(m => !m.song).length;
+  $("#ytnames").disabled = !unnamed;
+  $("#ytnote").textContent = !n
+    ? "The queue opens as one unlisted YouTube playlist, so the tracks run on from each "
+    + "other without anyone touching the laptop. Nothing is uploaded and no account is needed."
+    : `${n} track${n === 1 ? "" : "s"}. They open as one unlisted playlist and run in this `
+    + "order. YouTube caps an ad-hoc list at 50."
+    + (n > 50 ? " Everything past the 50th will be dropped." : "")
+    + (unnamed ? `  ${unnamed} still unnamed — that needs a connection.` : "");
+}
+
+/* YouTube gives out a title and a channel name through oEmbed: no API key, and
+   no CORS trouble even from a file:// page — checked before this was built.
+   It is the only place this window reaches the network, it is only reached when
+   you paste a YouTube link (which needs a connection to play anyway), and it
+   fails quietly. An unnamed track still plays; it just shows its id. */
+function ytFetch(vid) {
+  const ac = typeof AbortController === "function" ? new AbortController() : null;
+  const t = setTimeout(() => ac && ac.abort(), 6000);
+  return fetch("https://www.youtube.com/oembed?format=json&url="
+               + encodeURIComponent("https://www.youtube.com/watch?v=" + vid),
+               ac ? { signal: ac.signal } : {})
+    .then(r => r.ok ? r.json() : null)
+    .catch(() => null)
+    .then(j => { clearTimeout(t); return j; });
+}
+
+function ytNames() {
+  const todo = cfg.music.filter(m => !m.song);
+  if (!todo.length) return Promise.resolve(0);
+  $("#ytnames").disabled = true;
+  $("#ytnames").textContent = "Looking up\u2026";
+  let got = 0;
+  return Promise.all(todo.map(m => ytFetch(m.vid).then(j => {
+    if (!j || !j.title) return;
+    const nm = splitTitle(j.title, j.author_name || "");
+    m.artist = nm.artist; m.song = nm.song;
+    got++;
+  }))).then(() => {
+    $("#ytnames").textContent = "Look up missing names";
+    if (got) save();
+    musicRows();
+    if (!got) markSaved("No names came back \u2014 check the connection");
+    return got;
+  });
+}
+
+/* A video title is a free-text field, so this is a best guess and both boxes
+   stay editable. Only well-known noise comes out: an unfamiliar parenthetical
+   is left alone, because "(Remix)" or "(Live at Wembley)" is part of a track's
+   name in a way "(Official Video)" never is. */
+const YT_NOISE = new Set(("official officiel video vidéo audio lyric lyrics visualizer "
+  + "visualiser music m/v mv hd hq sd uhd 4k 8k 1080p 720p remaster remastered version "
+  + "explicit clean full color colour coded closed captioned").split(" "));
+const isNoise = str => {
+  const parts = str.trim().toLowerCase().split(/[\s_,]+/).filter(Boolean);
+  return parts.length > 0 && parts.every(w => YT_NOISE.has(w) || /^(19|20)\d\d$/.test(w));
+};
+function stripNoise(title) {
+  let out = String(title)
+    .replace(/[\(\[]([^\)\]]*)[\)\]]/g, (whole, inner) => isNoise(inner) ? " " : whole);
+  const tail = out.match(/\s*[|·•]\s*([^|·•]*)$/);
+  if (tail && isNoise(tail[1])) out = out.slice(0, tail.index);
+  out = out.replace(/\s+(m\/v|mv|hd|hq|4k|8k)\s*$/i, "");
+  return out.replace(/\s{2,}/g, " ").replace(/[\s\-–—|·]+$/, "").trim();
+}
+function splitTitle(title, channel) {
+  const t = stripNoise(title);
+  const m = t.match(/^(.{1,80}?)\s+[-–—]\s+(.+)$/);
+  if (m) return { artist: m[1].trim(), song: m[2].trim() };
+  const a = String(channel).replace(/vevo$/i, "").replace(/\s*-\s*topic$/i, "").trim();
+  return { artist: a, song: t };
+}
+
+/* ── Local audio ─────────────────────────────────────────────────────────
+   Never goes to the second screen: this is the laptop's own output feeding the
+   PA, and it has to keep playing while the wall does something else. */
+let auEl = null, auId = null, auScrub = false;
+
+const mmss = t => {
+  if (!isFinite(t) || t < 0) t = 0;
+  return Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+};
+
+const ICON_PLAY  = '<path d="M7 4.5 19.5 12 7 19.5z"/>';
+const ICON_PAUSE = '<path d="M8.6 4.5h2.6v15H8.6zM12.8 4.5h2.6v15h-2.6z"/>';
+const ICON_VOL   = '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>'
+                 + '<path d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.5 7.5 0 0 1 0 10.4"/>';
+const ICON_MUTE  = '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/>'
+                 + '<path d="M15.8 9.8 20.4 14.4M20.4 9.8 15.8 14.4"/>';
+
+function auTag() {
+  if (auEl) return auEl;
+  auEl = document.createElement("audio");
+  auEl.preload = "metadata";
+  auEl.volume = cfg.vol;
+  auEl.addEventListener("ended", () => auStep(1));
+  auEl.addEventListener("play",  auPaint);
+  auEl.addEventListener("pause", auPaint);
+  auEl.addEventListener("loadedmetadata", auPaint);
+  auEl.addEventListener("volumechange", auPaint);
+  // Four times a second. It must never touch the list, or it would tear the
+  // cursor out of a track name somebody is halfway through renaming.
+  auEl.addEventListener("timeupdate", () => { if (!auScrub) auPaint(); });
+  document.body.appendChild(auEl);
+  return auEl;
+}
+
+const fillPc = (el, pc) => el.style.setProperty("--fill", Math.max(0, Math.min(100, pc)) + "%");
+
+function auPaint() {
+  const el = auEl, has = cfg.audio.length > 0;
+  const t = cfg.audio.find(a => a.id === auId);
+  const playing = !!(el && !el.paused && t);
+  const dur = el && isFinite(el.duration) ? el.duration : 0;
+  const at  = el ? el.currentTime : 0;
+
+  $("#auicon").innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+  $("#auicon").setAttribute("class", "solid");
+  $("#autitle").textContent = t ? t.name : (has ? "Ready" : "Nothing loaded");
+  $("#ausub").textContent = t
+    ? `${cfg.audio.indexOf(t) + 1} of ${cfg.audio.length}`
+    : (has ? `${cfg.audio.length} track${cfg.audio.length === 1 ? "" : "s"} loaded` : "");
+
+  const seek = $("#auseek");
+  seek.disabled = !t || !dur;
+  seek.max = dur || 1;
+  if (!auScrub) seek.value = at;
+  fillPc(seek, dur ? (at / dur) * 100 : 0);
+  $("#aunow").textContent = mmss(at);
+  $("#audur").textContent = mmss(dur);
+
+  const vol = $("#auvol");
+  const v = el ? (el.muted ? 0 : el.volume) : cfg.vol;
+  if (document.activeElement !== vol) vol.value = Math.round(v * 100);
+  fillPc(vol, v * 100);
+  $("#auvicon").innerHTML = (el && (el.muted || el.volume === 0)) ? ICON_MUTE : ICON_VOL;
+
+  ["#auplay", "#aunext", "#auprev", "#aushuffle"].forEach(k => { $(k).disabled = !has; });
+  auMark();
+}
+
+// The live row is marked in place, never by rebuilding the list.
+function auMark() {
+  $$("#aulist .mrow").forEach(r => {
+    const on = r.dataset.id === auId;
+    const playing = on && auEl && !auEl.paused;
+    r.classList.toggle("live", on);
+    const tag = r.querySelector(".tag");
+    if (tag) {
+      tag.textContent = playing ? "playing" : (r.dataset.n || "");
+      tag.classList.toggle("hot", playing);
+    }
+  });
+}
+
+function auPlay(id) {
+  const t = cfg.audio.find(a => a.id === id);
+  if (!t) return;
+  auId = id;
+  urlFor(t.mid).then(u => {
+    if (!u || auId !== id) return;
+    const el = auTag();
+    el.src = u;
+    const pr = el.play();
+    if (pr && pr.catch) pr.catch(() => {});
+    auPaint();
+  });
+}
+
+function auStep(n) {
+  if (!cfg.audio.length) return;
+  const at = cfg.audio.findIndex(a => a.id === auId);
+  const i = at < 0 ? (n > 0 ? 0 : cfg.audio.length - 1) : at + n;
+  if (i < 0 || i >= cfg.audio.length) { if (auEl) auEl.pause(); auPaint(); return; }
+  auPlay(cfg.audio[i].id);
+}
+
+/* Back behaves the way every other player does: once you are a few seconds in,
+   it restarts the track rather than skipping off the front of it. */
+function auBack() {
+  if (auEl && auId && auEl.currentTime > 3) { auEl.currentTime = 0; auPaint(); return; }
+  auStep(-1);
+}
+
+function auToggle() {
+  if (!cfg.audio.length) return;
+  const el = auTag();
+  if (!auId) { auPlay(cfg.audio[0].id); return; }
+  if (el.paused) { const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); }
+  else el.pause();
+  auPaint();
+}
+
+function audioRows() {
+  const box = $("#aulist");
+  box.innerHTML = !cfg.audio.length
+    ? `<p class="sub" style="margin:14px 0 0">No audio loaded.</p>`
+    : cfg.audio.map((a, i) => `<div class="mrow" draggable="true" data-id="${a.id}" data-n="${i + 1}">
+        <div class="hnd" title="Drag to reorder">&#8942;&#8942;</div>
+        <span class="tag">${i + 1}</span>
+        <input type="text" data-f="name" value="${esc(a.name)}">
+        <span class="mt">${haveFile(a.mid) ? "" : "file missing"}</span>
+        <button class="ic up"${i ? "" : " disabled"}>&#8593;</button>
+        <button class="ic dn"${i < cfg.audio.length - 1 ? "" : " disabled"}>&#8595;</button>
+        <button class="btn ghost pl">Play</button>
+        <button class="ic del">&times;</button>
+      </div>`).join("");
+  auPaint();
+}
+
+function addAudio(files) {
+  const list = Array.from(files).sort(byName);
+  if (!list.length) return;
+  Promise.all(list.map(f => storeFile(f).then(id => ({ id, f })))).then(recs => {
+    recs.forEach(({ id, f }) => cfg.audio.push({
+      id: uid(), name: f.name.replace(/\.[^.]+$/, ""), mid: id
+    }));
+    save(); audioRows(); markSaved(`${recs.length} added`);
+  }).catch(fileErr);
+}
+
+/* Storage can be cleared, and an exported event file carries the running order
+   but never the files — so a deck can outlive its slides. Better to find that
+   out at five in the afternoon than when the speaker stands up. */
+let knownIds = null;
+const haveFile = id => !knownIds || knownIds.has(id);
+function checkFiles() {
+  return mediaKeys()
+    .then(ks => { knownIds = new Set(ks); })
+    .catch(() => { knownIds = null; });
+}
+
+/* ── Paint everything the show-control tabs show ─────────────────────── */
+function paintShow() {
+  deckRows(); dkShow();
+  mediaRows(); mdShow();
+  musicRows(); audioRows();
+  renderAirBar();
+}
+
+function fillShow() {
+  $("#f-interval").value      = cfg.show.interval;
+  $("#f-showloop").checked    = !!cfg.show.loop;
+  $("#f-showoverlay").checked = !!cfg.show.overlay;
+  $("#reelstop").disabled     = !reelT;
+}
+
+/* ── Wiring for the show-control tabs ────────────────────────────────── */
+const bind = (sel, ev, fn) => { const e = $(sel); if (e) e.addEventListener(ev, fn); };
+const pick = (sel, fn) => bind(sel, "change", e => { fn(e.target.files); e.target.value = ""; });
+
+pick("#f-slides",   f => addSlideDeck(f));
+pick("#f-deckpdf",  f => addPdfDeck(f));
+pick("#f-deckraw",  f => addRawDeck(f));
+pick("#f-mediaimg", f => addMedia(f, "image"));
+pick("#f-mediavid", f => addMedia(f, "video"));
+pick("#f-audio",    f => addAudio(f));
+
+/* Drag to reorder, the same as the schedule rows. Rows are identified by id
+   rather than index, because these lists renumber themselves on every redraw
+   and an index captured at dragstart would be stale by the drop. */
+function sortable(sel, arrFor, after) {
+  const host = $(sel);
+  if (!host) return;
+  let from = null;
+  const clear = () => $$(sel + " .mrow").forEach(r => r.classList.remove("drag", "over"));
+
+  host.addEventListener("dragstart", e => {
+    const row = e.target.closest(".mrow");
+    if (!row) return;
+    from = row.dataset.id;
+    row.classList.add("drag");
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", from); } catch (_) {}
+  });
+  host.addEventListener("dragover", e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const row = e.target.closest(".mrow");
+    $$(sel + " .mrow").forEach(r => r.classList.remove("over"));
+    if (row && row.dataset.id !== from) row.classList.add("over");
+  });
+  host.addEventListener("drop", e => {
+    e.preventDefault();
+    const row = e.target.closest(".mrow");
+    const arr = arrFor();
+    if (row && from != null) {
+      const i = arr.findIndex(x => x.id === from);
+      const j = arr.findIndex(x => x.id === row.dataset.id);
+      if (i >= 0 && j >= 0 && i !== j) {
+        const [m] = arr.splice(i, 1);
+        arr.splice(j, 0, m);
+        save();
+      }
+    }
+    from = null; clear(); after();
+  });
+  host.addEventListener("dragend", () => { from = null; clear(); });
+}
+
+sortable("#ytlist",    () => cfg.music, musicRows);
+sortable("#aulist",    () => cfg.audio, audioRows);
+sortable("#medialist", () => cfg.media, () => { mediaRows(); mdShow(); });
+
+// Moving a row: the arrows shift it one place, which is all a running order needs.
+function swap(arr, i, j) {
+  if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) return;
+  const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+}
+
+bind("#decklist", "click", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const d = cfg.decks.find(x => x.id === row.dataset.id); if (!d) return;
+  if (e.target.classList.contains("del")) {
+    if (!confirm(`Remove "${d.name}"? The files go with it.`)) return;
+    (d.slides || []).forEach(dropFile);
+    if (d.pdf) dropFile(d.pdf);
+    if (airDeckId() === d.id) airOff();
+    if (dkSel && dkSel.id === d.id) dkSel = null;
+    cfg.decks = cfg.decks.filter(x => x.id !== d.id);
+    save(); paintShow();
+  } else if (e.target.classList.contains("pv")) {
+    dkSel = { id: d.id, i: 0 };
+    paintShow();
+  }
+});
+// Typed edits must never redraw the list: rebuilding it under the cursor
+// detaches the field being typed into.
+bind("#decklist", "input", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const d = cfg.decks.find(x => x.id === row.dataset.id); if (!d) return;
+  const f = e.target.dataset.f;
+  if (f === "name" || f === "speaker") { d[f] = e.target.value; save(); }
+});
+bind("#decklist", "change", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const d = cfg.decks.find(x => x.id === row.dataset.id); if (!d) return;
+  if (e.target.dataset.f === "seg") {
+    d.seg = e.target.value === "" ? null : +e.target.value;
+    save();
+  }
+});
+bind("#dkthumbs", "click", e => {
+  if (e.target.tagName !== "IMG" || !dkSel) return;
+  dkSel.i = +e.target.dataset.k || 0;
+  if (curDeck() && curDeck().id === airDeckId()) dkSend(); else { dkShow(); }
+});
+bind("#dkprev", "click", () => dkStep(-1));
+bind("#dknext", "click", () => dkStep(1));
+bind("#dksend", "click", dkSend);
+
+bind("#medialist", "click", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const id = row.dataset.id;
+  const i = cfg.media.findIndex(m => m.id === id);
+  if (i < 0) return;
+  const t = e.target;
+  if (t.classList.contains("del")) {
+    if (!confirm(`Remove "${cfg.media[i].name}"?`)) return;
+    if (rt.air && (rt.air.key === "m:" + id || rt.air.key === "reel:" + id)) airOff();
+    dropFile(cfg.media[i].mid);
+    cfg.media.splice(i, 1);
+    if (mdSel === id) mdSel = cfg.media.length ? cfg.media[0].id : null;
+  } else if (t.classList.contains("up")) swap(cfg.media, i, i - 1);
+  else if (t.classList.contains("dn"))   swap(cfg.media, i, i + 1);
+  else if (t.classList.contains("pv"))   mdSel = id;
+  else return;
+  save(); paintShow();
+});
+bind("#medialist", "input", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const m = cfg.media.find(x => x.id === row.dataset.id);
+  if (m && e.target.dataset.f === "name") { m.name = e.target.value; save(); }
+});
+bind("#mdthumbs", "click", e => {
+  if (e.target.tagName !== "IMG") return;
+  mdSel = e.target.dataset.id;
+  mdShow(); mediaRows();
+});
+bind("#mdprev", "click", () => mdStep(-1));
+bind("#mdnext", "click", () => mdStep(1));
+bind("#mdsend", "click", mdSend);
+bind("#mdplay", "click", () => {
+  const live = rt.air && rt.air.kind === "video";
+  mdCmd(live && rt.air.cmd && rt.air.cmd.act === "play" ? "pause" : "play", null);
+});
+bind("#mdback", "click", () => mdCmd("play", 0));
+
+bind("#reelstart", "click", reelStart);
+bind("#reelstop",  "click", () => { reelStop(); airOff(); });
+bind("#f-interval", "input", e => { cfg.show.interval = Math.max(2, +e.target.value || 8); save(); });
+bind("#f-showloop", "change", e => { cfg.show.loop = e.target.checked; save(); });
+bind("#f-showoverlay", "change", e => {
+  cfg.show.overlay = e.target.checked;
+  if (rt.air) { rt.air = Object.assign({}, rt.air, { overlay: cfg.show.overlay }); publishLive(); tick(); }
+  save(); renderAirBar();
+});
+
+bind("#airoff", "click", airOff);
+bind("#airoverlay", "change", e => {
+  cfg.show.overlay = e.target.checked;
+  if (rt.air) { rt.air = Object.assign({}, rt.air, { overlay: e.target.checked }); publishLive(); tick(); }
+  save();
+  const b = $("#f-showoverlay"); if (b) b.checked = e.target.checked;
+});
+
+bind("#ytadd", "click", ytAdd);
+bind("#ytnames", "click", ytNames);
+bind("#ytopen", "click", () => {
+  if (!cfg.music.length) { alert("Queue is empty."); return; }
+  const ids = cfg.music.slice(0, 50).map(m => m.vid).join(",");
+  window.open("https://www.youtube.com/watch_videos?video_ids=" + ids, "biesMusic");
+});
+bind("#ytsearch", "click", () => {
+  const q = $("#ytq").value.trim();
+  if (!q) return;
+  window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(q), "biesSearch");
+});
+bind("#ytq", "keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("#ytsearch").click(); } });
+bind("#ytlist", "click", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const i = cfg.music.findIndex(m => m.id === row.dataset.id);
+  if (i < 0) return;
+  if (e.target.classList.contains("del"))      cfg.music.splice(i, 1);
+  else if (e.target.classList.contains("up"))  swap(cfg.music, i, i - 1);
+  else if (e.target.classList.contains("dn"))  swap(cfg.music, i, i + 1);
+  else return;
+  save(); musicRows();
+});
+bind("#ytlist", "input", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const m = cfg.music.find(x => x.id === row.dataset.id);
+  const f = e.target.dataset.f;
+  if (m && (f === "artist" || f === "song")) { m[f] = e.target.value; save(); }
+});
+
+bind("#auplay", "click", auToggle);
+bind("#aunext", "click", () => auStep(1));
+bind("#auprev", "click", auBack);
+bind("#aumute", "click", () => { const el = auTag(); el.muted = !el.muted; auPaint(); });
+
+/* Scrubbing: hold off the four-a-second repaint while the thumb is down, or it
+   drags the handle back out from under the pointer. */
+bind("#auseek", "pointerdown", () => { auScrub = true; });
+bind("#auseek", "input", e => {
+  const el = auTag();
+  if (isFinite(el.duration)) el.currentTime = +e.target.value;
+  fillPc(e.target, el.duration ? (+e.target.value / el.duration) * 100 : 0);
+  $("#aunow").textContent = mmss(+e.target.value);
+});
+["pointerup", "pointercancel", "change", "blur"].forEach(ev =>
+  bind("#auseek", ev, () => { auScrub = false; auPaint(); }));
+
+bind("#auvol", "input", e => {
+  const el = auTag();
+  el.volume = +e.target.value / 100;
+  if (el.volume > 0) el.muted = false;
+  cfg.vol = el.volume;
+  auPaint();
+});
+bind("#auvol", "change", save);
+
+bind("#aushuffle", "click", () => {
+  for (let i = cfg.audio.length - 1; i > 0; i--) {      // Fisher-Yates
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = cfg.audio[i]; cfg.audio[i] = cfg.audio[j]; cfg.audio[j] = t;
+  }
+  save(); audioRows(); markSaved("Shuffled");
+});
+bind("#aulist", "click", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const id = row.dataset.id;
+  const i = cfg.audio.findIndex(a => a.id === id);
+  if (i < 0) return;
+  const t = e.target;
+  if (t.classList.contains("del")) {
+    if (auId === id && auEl) { auEl.pause(); auEl.removeAttribute("src"); auId = null; }
+    dropFile(cfg.audio[i].mid);
+    cfg.audio.splice(i, 1);
+  }
+  else if (t.classList.contains("up")) swap(cfg.audio, i, i - 1);
+  else if (t.classList.contains("dn")) swap(cfg.audio, i, i + 1);
+  else if (t.classList.contains("pl")) { auPlay(id); save(); return; }
+  else return;
+  save(); audioRows();
+});
+bind("#aulist", "input", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const a = cfg.audio.find(x => x.id === row.dataset.id);
+  if (a && e.target.dataset.f === "name") { a.name = e.target.value; save(); }
+});
+
+function showTab(name) {
+  $$(".tab").forEach(x => x.classList.toggle("on", x.dataset.tab === name));
+  $$(".pane").forEach(p => p.classList.toggle("on", p.dataset.pane === name));
+}
+$$(".tab").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+const FIELDS = [
+  ["#f-name", "name"], ["#f-code", "code"], ["#f-date", "date"], ["#f-start", "start"],
+  ["#f-dwell1", "dwell1"], ["#f-dwell2", "dwell2"]
+];
+
+function openSetup() {
+  if (AUDIENCE) return;                       // never on the screen the room sees
+  FIELDS.forEach(([sel, key]) => { $(sel).value = cfg[key] == null ? "" : cfg[key]; });
+  $("#f-qrtitle").value  = cfg.qr.title || "";
+  $("#f-qrurl").value    = cfg.qr.url || "";
+  $("#f-qrcap").value    = cfg.qr.cap || "";
+  $("#f-upcoming").value = upcomingText();
+  buildTimePop(); segRows(); spRows(); qrThumb(); checkClock(); checkStore();
+  fillShow(); paintShow(); checkFiles().then(paintShow);
+  const st = current().state;
+  const running = st === "run" || st === "post";
+  $("#startbtn").textContent = running ? "Back to the screen" : "Start the night";
+  showTab(running ? "segments" : "event");   // mid-event you came for the schedule
+  $("#setup").classList.add("live");
+  document.body.classList.add("show-cursor");
+  renderSetupLive();
+}
+
+function readSetup() {
+  cfg.name   = $("#f-name").value.trim();
+  cfg.code   = $("#f-code").value.trim();
+  cfg.date   = $("#f-date").value || iso(new Date());
+  cfg.start  = $("#f-start").value || "18:30";
+  cfg.dwell1 = Math.max(5, +$("#f-dwell1").value || 30);
+  cfg.dwell2 = Math.max(5, +$("#f-dwell2").value || 12);
+  cfg.qr = { title: $("#f-qrtitle").value.trim(),
+             url:   $("#f-qrurl").value.trim(),
+             cap:   $("#f-qrcap").value.trim(),
+             img:   cfg.qr.img || "" };
+  cfg.upcoming = parseUpcoming($("#f-upcoming").value);
+  save();
+}
+
+function closeSetup() {
+  readSetup();
+  $("#setup").classList.remove("live");
+  rt.qrCache = null;                    // force the QR to redraw
+  rt.panelSince = Date.now();
+  tick();
+  reveal(6000);                         // leave the way back visible for a moment
+}
+
+// Changing the date or start time invalidates every pin and stretch from before
+let savedTimer = null;
+function markSaved(msg) {
+  const n = $("#savednote");
+  n.textContent = msg || "Saved";
+  n.classList.add("on");
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => n.classList.remove("on"), 1800);
+}
+
+// Every field is written the moment it changes, so nothing is lost to a refresh
+// or a closed laptop. The Save button is there to say so out loud.
+$("#setup").addEventListener("input", e => {
+  // A row handler may have re-rendered its list already, which detaches the
+  // target — so closest() would say null and this would overwrite the change
+  // with a stale form value. A detached target means someone else has it.
+  if (!e.target.isConnected) return;
+  if (e.target.closest("#seglist") || e.target.closest("#splist")) return;  // own handlers
+  if (e.target.id === "f-qrurl") { cfg.qr.url = e.target.value.trim(); qrThumb(); }
+  if (e.target.id === "f-date" || e.target.id === "f-start") {
+    const running = current().state === "run";   // check before the date moves
+    cfg.date  = $("#f-date").value || cfg.date;
+    cfg.start = $("#f-start").value || cfg.start;
+    // Clearing tonight's slip is only safe before the night has started;
+    // doing it mid-event would snap the board back to the original plan.
+    if (!running) { cfg.anchorSlip = 0; cfg.overrides = {}; cfg.extra = {}; }
+    segRows(); checkClock();
+  }
+  if (e.target.id === "pastebox") return;        // not config until it is parsed
+  readSetup();
+  markSaved();
+});
+
+$("#savebtn").addEventListener("click", () => {
+  readSetup(); segRows(); qrThumb(); markSaved("Saved");
+});
+
+// Last lines of defence: a closing window or a laptop lid must not lose an edit
+const flushSetup = () => { if ($("#setup").classList.contains("live")) readSetup(); };
+window.addEventListener("beforeunload", flushSetup);
+window.addEventListener("pagehide", flushSetup);
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushSetup(); });
+
+// Safari refuses localStorage for pages opened from disk. Say so rather than
+// silently losing the night's schedule on the first reload.
+// Opening the editor mid-event means flying blind unless it keeps showing the
+// live segment and its countdown.
+function renderSetupLive() {
+  const strip = $("#livestrip");
+  if (!$("#setup").classList.contains("live")) { strip.classList.remove("on"); return; }
+  renderAirBar();
+  const c = current();
+  if (c.state !== "run") { strip.classList.remove("on"); return; }
+  strip.classList.add("on");
+  const seg = cfg.segments[c.idx], nxt = cfg.segments[c.idx + 1];
+  $("#livenow").innerHTML = `On the screen now: <b>${esc(seg.title)}</b>`
+    + (nxt ? ` &middot; then ${esc(nxt.title)}` : "");
+  $("#livecd").textContent = dur(c.ends[c.idx] - nowSched());
+}
+
+function checkStore() {
+  let fine = true;
+  try { localStorage.setItem("__bies_probe", "1"); localStorage.removeItem("__bies_probe"); }
+  catch (_) { fine = false; }
+  $("#storewarn").textContent = fine ? ""
+    : "This browser will not let the page save anything, so tonight's schedule is lost the "
+    + "moment it reloads. Safari blocks storage for files opened from disk — open this file "
+    + "in Google Chrome instead.";
+}
+
+function checkClock() {
+  const today = iso(new Date());
+  const w = $("#clockwarn");
+  w.textContent = (cfg.date && cfg.date !== today)
+    ? `Heads up: this is set for ${cfg.date}, but this machine thinks today is ${today}. `
+    + `Check the laptop's clock — every countdown on the screen is worked out from it.`
+    : "";
+}
+
+$("#startbtn").addEventListener("click", () => { closeSetup(); fullscreen(); });
+
+$("#exportbtn").addEventListener("click", () => {
+  readSetup();
+  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(cfg.code || cfg.name || "bies-event").replace(/\s+/g, "-")}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+
+$("#importfile").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const got = JSON.parse(fr.result);
+      if (!got || !Array.isArray(got.segments)) throw new Error("that is not an event file");
+      cfg = Object.assign(defaults(), got);
+      cfg.overrides = got.overrides || {}; cfg.extra = got.extra || {};
+      cfg.qr = Object.assign(defaults().qr, got.qr || {});
+      save(); openSetup();
+    } catch (err) { alert("Could not read that file: " + err.message); }
+  };
+  fr.readAsText(f);
+  e.target.value = "";
+});
+
+$("#resetbtn").addEventListener("click", () => {
+  if (!confirm("Clear the saved event, schedule, partners and panels from this browser?")) return;
+  try { localStorage.removeItem(STORE); } catch (_) {}
+  cfg = defaults(); openSetup();
+});
+
+/* ── Boot ────────────────────────────────────────────────────────────── */
+(function boot() {
+  let stored = null;
+  try { stored = localStorage.getItem(STORE); } catch (_) {}
+  load();
+  rt.panelSince = Date.now();
+  if (!AUDIENCE) {
+    /* A refresh here must not orphan the second screen: it is still showing
+       whatever was last sent, so pick that back up rather than losing the
+       handle on it. */
+    try {
+      const l = JSON.parse(localStorage.getItem(LIVE) || "null");
+      if (l && l.air && l.air.key) rt.air = l.air;
+    } catch (_) {}
+  }
+  tick();
+  setInterval(tick, 250);
+
+  // Coming back from a PowerPoint (or any other app) must be instant: browsers
+  // throttle timers in a background tab, but every frame is recomputed from the
+  // wall clock, so one forced tick on return is all it takes.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+  window.addEventListener("focus", tick);
+  window.addEventListener("pageshow", tick);
+
+  if (AUDIENCE) {
+    document.body.classList.add("audience");
+    const syncFull = () => document.body.classList.toggle("not-full", !document.fullscreenElement);
+    syncFull();
+    document.addEventListener("fullscreenchange", syncFull);
+    document.addEventListener("click", () => { if (!document.fullscreenElement) fullscreen(); });
+    return;                            // no setup, no controls, no keys
+  }
+
+  window.addEventListener("beforeunload", () => {
+    if (secondWin && !secondWin.closed) secondWin.close();
+  });
+
+  if (!stored) openSetup();            // first run has nothing to show yet
+  else reveal(8000);                   // otherwise show the way out long enough to find
+})();
+</script>
+</body>
+</html>

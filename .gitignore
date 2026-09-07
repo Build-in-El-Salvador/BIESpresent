@@ -1,0 +1,20 @@
+node_modules/
+.DS_Store
+
+# Speakers' decks and the event's photos and video. These belong to whoever
+# handed them over, they are often large, and none of it is ours to publish.
+decks/inbox/*
+!decks/inbox/READ ME.txt
+decks/ready/
+
+# Screenshots the browser suites leave behind
+test/*.png
+test-results/
+
+# Diagnostic screenshots the suites drop in whatever directory they run from
+shot-*.png
+deck-*.png
+tab-*.png
+
+# The BIES build embeds a licensed typeface. It is not ours to publish.
+BIESpresent (BIES brand).html

@@ -1,0 +1,17 @@
+{
+  "name": "biespresent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Event-night show-control board for Build in El Salvador",
+  "scripts": {
+    "build": "python3 build.py",
+    "test": "node test/run.js",
+    "test:fast": "node test/run.js --fast"
+  },
+  "devDependencies": {
+    "jsqr": "^1.4.0",
+    "playwright-core": "^1.63.0",
+    "pngjs": "^7.0.0",
+    "qrcode": "^1.5.4"
+  }
+}
