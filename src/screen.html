@@ -976,6 +976,7 @@ body.audience.not-full #fshint{display:block}
     name of a YouTube track, and only if you paste one in.
   </p>
   <p class="sub warn" id="storewarn" style="margin-top:-18px"></p>
+  <p class="sub warn" id="wakewarn" style="margin-top:-18px"></p>
 
   <div id="livestrip">
     <span class="dot"></span>
@@ -2128,6 +2129,34 @@ function renderAir() {
     $("#airslugc").textContent = c.textContent;
     $("#airslugc").className   = "c " + (c.className || "");
   } else slug.classList.remove("on");
+}
+
+/* ── Keeping the screen on ───────────────────────────────────────────────
+   Three unattended hours of a mostly static board is precisely the situation
+   a screensaver exists for, and the display going to sleep mid-talk is the
+   likeliest way to lose a night. Both windows hold a lock: the operator's
+   because the laptop's own display sleeping can take the mirrored output with
+   it, the audience one because it is the screen the room is watching.
+
+   The browser drops the lock every time the page is hidden — switching to a
+   PowerPoint does exactly that — so it has to be taken again on the way back
+   rather than once at startup. */
+let wakeLock = null;
+let wakeState = "wakeLock" in navigator ? "pending" : "unsupported";
+
+function holdScreenAwake() {
+  if (!("wakeLock" in navigator) || document.hidden) return;
+  if (wakeLock && !wakeLock.released) return;
+  navigator.wakeLock.request("screen").then(lock => {
+    wakeLock = lock;
+    wakeState = "held";
+    lock.addEventListener("release", () => { wakeLock = null; });
+    checkWake();
+  }).catch(e => {
+    wakeLock = null;
+    wakeState = "refused: " + (e && e.name || e);
+    checkWake();      // settles after the editor may already have been drawn
+  });
 }
 
 let ticking = false;
@@ -3985,6 +4014,7 @@ function openSetup() {
   $("#f-upcoming").value = upcomingText();
   buildTimePop(); segRows(); spRows(); qrThumb(); checkClock(); checkStore();
   fillShow(); paintShow(); checkFiles().then(paintShow);
+  checkWake();
   const st = current().state;
   const running = st === "run" || st === "post";
   $("#startbtn").textContent = running ? "Back to the screen" : "Start the night";
@@ -4088,6 +4118,18 @@ function checkStore() {
     + "in Google Chrome instead.";
 }
 
+function checkWake() {
+  const w = $("#wakewarn");
+  if (!w) return;
+  w.textContent =
+      wakeState === "held" || wakeState === "pending" ? ""
+    : wakeState === "unsupported"
+      ? "This browser will not hold the screen awake, so set the laptop's display sleep to "
+      + "Never in System Settings before the event, or the board will go dark mid-talk."
+      : "The screen could not be kept awake (" + wakeState + "). Set display sleep to Never "
+      + "in System Settings, or the board will go dark mid-talk.";
+}
+
 function checkClock() {
   const today = iso(new Date());
   const w = $("#clockwarn");
@@ -4157,9 +4199,12 @@ $("#resetbtn").addEventListener("click", () => {
   // Coming back from a PowerPoint (or any other app) must be instant: browsers
   // throttle timers in a background tab, but every frame is recomputed from the
   // wall clock, so one forced tick on return is all it takes.
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
-  window.addEventListener("focus", tick);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) { tick(); holdScreenAwake(); }
+  });
+  window.addEventListener("focus", () => { tick(); holdScreenAwake(); });
   window.addEventListener("pageshow", tick);
+  holdScreenAwake();
 
   if (AUDIENCE) {
     document.body.classList.add("audience");

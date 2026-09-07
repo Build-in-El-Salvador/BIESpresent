@@ -318,6 +318,21 @@ is easier on a trackpad in a dark room.
 
 ---
 
+## The screen going to sleep
+
+Three unattended hours of a mostly static board is exactly the situation a screensaver was
+invented for, and the display sleeping mid-talk is the likeliest way to lose a night. Both
+windows now ask the browser to hold the screen awake, and ask again every time the page comes
+back — because stepping out to a PowerPoint drops the lock.
+
+If the browser refuses, **the editor says so** and tells you to set display sleep to Never in
+System Settings. It is worth glancing at the top of the editor before doors open.
+
+This is not a substitute for plugging the laptop in. A Mac on battery still dims and sleeps
+on its own schedule.
+
+---
+
 ## Getting out of something that is on the screen
 
 Whenever anything is on the wall — a deck, a photo, a clip — the controls in the bottom
@@ -510,7 +525,7 @@ npm run test:fast    # the two pure-node suites, about a second
 npm test -- qr sched # only suites whose name contains one of these
 ```
 
-454 checks across 20 suites. Two run in plain node — the QR encoder against a reference
+464 checks across 21 suites. Two run in plain node — the QR encoder against a reference
 implementation, and the schedule maths. The rest drive **the real Google Chrome installed on
 this machine**, not a bundled Chromium, because Chrome is what runs the board on the night;
 `playwright-core` is the dependency precisely so nothing downloads a browser. Chrome has to
@@ -518,6 +533,11 @@ be installed for those to run.
 
 `test/lib/qr.js` reads the encoder straight out of `src/screen.html` rather than keeping a
 copy, so the test cannot pass against code the board no longer ships.
+
+A handful of checks measure real elapsed time — a countdown advancing, a track playing, a
+photo reel moving on. Running twenty browser suites back to back on a busy laptop can starve
+those and report failures that are not real. **If a timing check fails, re-run that suite on
+its own** (`npm test -- music`) before believing it.
 
 Run the suites before touching anything in `src/screen.html`. Several of the rules in there
 are not obvious — the present never moves when the schedule is edited mid-event, ops codes
