@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# Opens the board in a window with no tabs and no address bar.
+#
+# Which browser: the schedule, the decks and the media are stored *by the
+# browser*, so a night set up in one is not visible from the other. Pick one
+# and stay with it. Brave is first here because that is what the office uses;
+# swap the two lines to prefer Chrome, which allows about 3 GB of media
+# against Brave's 2 GB and matters only if you load a lot of video.
+BROWSERS=(
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+)
+
+die() { /usr/bin/osascript -e "display alert \"BIESpresent\" message \"$1\" as critical"; exit 1; }
+
+# This app lives beside the HTML it opens, so look next to itself first. An
+# alias in the Dock or in Applications still resolves back to here.
+HERE="$(cd "$(dirname "$0")/../../.." && pwd)"
+
+PAGE=""
+for f in "$HERE/BIESpresent (BIES brand).html" \
+         "$HERE/BIESpresent.html" \
+         "$HOME/Desktop/BIESpresent/BIESpresent (BIES brand).html" \
+         "$HOME/Desktop/BIESpresent/BIESpresent.html"; do
+  [ -f "$f" ] && PAGE="$f" && break
+done
+[ -n "$PAGE" ] || die "Could not find BIESpresent.html. Keep this app in the same folder as it."
+
+BROWSER=""
+for b in "${BROWSERS[@]}"; do [ -x "$b" ] && BROWSER="$b" && break; done
+[ -n "$BROWSER" ] || die "Neither Brave nor Chrome is installed. The board needs one of them."
+
+# as_uri() percent-encodes the spaces and brackets in the filename properly
+URL="$(/usr/bin/python3 -c 'import sys,pathlib;print(pathlib.Path(sys.argv[1]).as_uri())' "$PAGE")"
+
+# Straight to the binary rather than `open`: this adds a window to the browser
+# already running instead of arguing with it about a second instance.
+exec "$BROWSER" --app="$URL" >/dev/null 2>&1

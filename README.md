@@ -12,6 +12,30 @@ Use **Chrome or Brave** — both were tested end to end, including the second sc
 will not store anything for a file opened from disk, so the schedule would be lost on every
 refresh; the board detects that and says so if you open it there.
 
+## Launching it
+
+**Double-click `BIESpresent.app`.** It opens the board in a window with no tabs and no
+address bar, which is what you want in front of a room.
+
+Keep it in this folder — it looks for the HTML next to itself. To reach it quickly, drag it
+onto the **Dock**: that makes a shortcut back to it here rather than a copy, so it keeps
+working. It prefers the BIES-brand build when that has been made, and falls back to the
+published one.
+
+Double-clicking `BIESpresent.html` itself also works and always will. You just get the
+browser's tabs and address bar around the board, and `F` for fullscreen hides those anyway.
+
+> **Stay with one browser.** The schedule, the decks and the media are stored *by the
+> browser*, so a night set up in Chrome is not there when you open it in Brave — it will look
+> like your work vanished. The app opens Brave; the top of
+> `BIESpresent.app/Contents/MacOS/BIESpresent` is one line to change if you would rather it
+> opened Chrome, which allows about 3 GB of media against Brave's 2 GB. That only matters if
+> you load a lot of video.
+
+The app is not signed by Apple. Cloning this repository is fine, but if someone **downloads
+it as a zip**, macOS quarantines it and refuses to open it — right-click the app and choose
+**Open** once, and it will stop asking.
+
 ---
 
 ## On the night
@@ -480,6 +504,7 @@ with macOS. Edit `src/screen.html`, run the build, and the distributable file is
 src/screen.html      the source — all the markup, style and logic
 build.py             inlines fonts and logos, writes the built file
 BIESpresent.html     the built file. This is the thing you hand someone
+BIESpresent.app      double-click launcher: opens the board with no browser chrome
 fonts/               the open fonts the published build uses, with their licences
 Convert Decks.command  turns .pptx/.key/.pdf into slides the board can show
 decks/               inbox and ready folders for the converter (not committed)
