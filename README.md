@@ -171,6 +171,19 @@ fine. Use manual mode when you want the screen to hold on a segment no matter wh
 `←` also switches to manual, because going *back* means going against the clock; `A` hands
 it back.
 
+**Want the times back?** **Reset to the original times**, on the Schedule tab, puts every
+time back to the running order as it stood *before the night started* — clearing the slip,
+any stretched segment and any pinned start, and restoring the lengths and the start time.
+It only ever touches times: no segment is added, removed or renamed, and anything you added
+during the night keeps the length you gave it. The line under the button says exactly what
+it would undo before you press it, and the button is greyed out when there is nothing to
+undo.
+
+Everything in the editor counts as the plan right up until the night starts — so a schedule
+you paste in, then tidy up by hand over the afternoon, is what you get back. From the moment
+the first segment begins, the editor is describing what is actually happening and the plan
+is frozen.
+
 **Gone so far off plan that the printed times are a liability?** Press `T`, or tick *Hide the
 clock times on the screen* on the Schedule tab. The running order, the marker on where we
 are and the countdown all stay — only the clock times go, and only on the screen. You can
@@ -645,7 +658,7 @@ npm run test:fast    # the two pure-node suites, about a second
 npm test -- qr sched # only suites whose name contains one of these
 ```
 
-599 checks across 25 suites. Two run in plain node — the QR encoder against a reference
+624 checks across 26 suites. Two run in plain node — the QR encoder against a reference
 implementation, and the schedule maths. The rest drive **the real Google Chrome installed on
 this machine**, not a bundled Chromium, because Chrome is what runs the board on the night;
 `playwright-core` is the dependency precisely so nothing downloads a browser. Chrome has to

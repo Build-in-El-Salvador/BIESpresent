@@ -503,6 +503,8 @@ body.audience.not-full #fshint{display:block}
   display:inline-block; font-size:14px; letter-spacing:.08em;
   text-transform:none; color:var(--snow); margin-bottom:0;
 }
+/* Nothing to undo reads better as a greyed button than as one that does nothing */
+.btn:disabled{opacity:.4;cursor:default;pointer-events:none}
 #setup input[type=text],#setup input[type=date],#setup input[type=time],
 #setup input[type=number],#setup input[type=url],#setup textarea{
   width:100%; background:var(--navy-lift); color:var(--snow);
@@ -1141,9 +1143,11 @@ body.audience.not-full #fshint{display:block}
     <div id="seglist"></div>
     <div class="btnrow">
       <button class="btn" id="addseg">+ Add segment</button>
+      <button class="btn ghost" id="replan">Reset to the original times</button>
       <button class="btn ghost" id="loadsn">Load the standard social night</button>
     </div>
     <p class="hint" style="margin-top:16px">Ends at <strong id="endsat">&mdash;</strong></p>
+    <p class="sub" id="plannote" style="margin-top:8px"></p>
     <label class="tog" style="margin-top:14px">
       <input type="checkbox" id="f-hidetimes"> Hide the clock times on the screen (T)</label>
     <p class="sub" style="margin-top:8px">For a night that has gone far enough off plan that
@@ -1840,6 +1844,7 @@ function defaults() {
     overrides: {},        // segment index -> pinned start (epoch ms)
     extra: {},            // segment index -> minutes added by the operator
     anchorSlip: 0,        // minutes the whole night has been shifted
+    plan: null,           // the running order as it was before the night began
     hideTimes: false,     // a night far enough off plan that the clock times mislead
     qr: { title: "Join the community", url: "", cap: "Scan to join the BIES WhatsApp group",
           img: "" },
@@ -1887,8 +1892,58 @@ const rt = {
 /* ── Storage ─────────────────────────────────────────────────────────── */
 function save() {
   if (AUDIENCE) return;                       // mirrors must never clobber the source
-  try { localStorage.setItem(STORE, JSON.stringify(cfg)); }
-  catch (e) { console.warn("save failed", e); }
+  try {
+    /* Everything in the editor is still the plan right up until the night
+       starts. From the moment it does, the editor is describing what is
+       actually happening, and this stops following it — which is what makes
+       "back to the original times" possible without the operator having had to
+       remember to press anything beforehand. */
+    if (current().state === "pre") snapPlan();
+    localStorage.setItem(STORE, JSON.stringify(cfg));
+  } catch (e) { console.warn("save failed", e); }
+}
+
+function snapPlan() {
+  const mins = {};
+  cfg.segments.forEach((s, i) => { mins[i] = Number(s.min) || 0; });
+  cfg.plan = { start: cfg.start || "18:30", mins };
+}
+
+/* What tonight has picked up since. Segments added after the night started have
+   no planned length of their own, so they are left out of the count and left
+   alone by the reset — the operator added them on purpose. */
+function planDrift() {
+  const p = cfg.plan;
+  let slip = cfg.anchorSlip || 0;
+  for (const k in cfg.extra) slip += cfg.extra[k] || 0;
+  const pinned = Object.keys(cfg.overrides).length;
+  let lengths = 0, startMoved = false;
+  if (p) {
+    startMoved = !!p.start && p.start !== cfg.start;
+    cfg.segments.forEach((s, i) => {
+      if (p.mins[i] != null && p.mins[i] !== (Number(s.min) || 0)) lengths++;
+    });
+  }
+  const any = Math.abs(slip) > 0.01 || !!pinned || !!lengths || startMoved;
+  const bits = [];
+  if (Math.abs(slip) > 0.01)
+    bits.push(`${Math.abs(Math.round(slip))} min ${slip > 0 ? "of slip" : "pulled in"}`);
+  if (pinned)     bits.push(`${pinned} pinned start${pinned > 1 ? "s" : ""}`);
+  if (lengths)    bits.push(`${lengths} changed length${lengths > 1 ? "s" : ""}`);
+  if (startMoved) bits.push("a different start time");
+  return { any, bits };
+}
+
+function restorePlan() {
+  const p = cfg.plan;
+  cfg.overrides = {}; cfg.extra = {}; cfg.anchorSlip = 0;
+  if (p) {
+    if (p.start) cfg.start = p.start;
+    cfg.segments.forEach((s, i) => { if (p.mins[i] != null) s.min = p.mins[i]; });
+  }
+  save();
+  const st = $("#f-start"); if (st) st.value = cfg.start;
+  segRows(); tick(); markSaved("Back to the original times");
 }
 
 // The slice of runtime state the second screen has to agree with us about
@@ -2778,6 +2833,13 @@ function remapTiming(map) {
     const n = map[+k]; if (n != null && n >= 0) x[n] = cfg.extra[k];
   });
   cfg.overrides = o; cfg.extra = x;
+  if (cfg.plan) {                    // the planned lengths follow their rows too
+    const m = {};
+    Object.keys(cfg.plan.mins).forEach(k => {
+      const n = map[+k]; if (n != null && n >= 0) m[n] = cfg.plan.mins[k];
+    });
+    cfg.plan.mins = m;
+  }
   if (rt.manualIndex >= 0) {
     const n = map[rt.manualIndex];
     rt.manualIndex = (n == null || n < 0) ? Math.max(0, rt.manualIndex - 1) : n;
@@ -2840,6 +2902,19 @@ function segRows() {
       <button class="del" title="Remove">&times;</button>
     </div>`).join("");
   $("#endsat").textContent = ends.length ? clockStr(ends[ends.length - 1]) : "—";
+  planNote();
+}
+
+/* Says what pressing the reset would actually undo, before it is pressed. */
+function planNote() {
+  const b = $("#replan"), n = $("#plannote");
+  if (!b || !n) return;
+  const d = planDrift();
+  b.disabled = !d.any;
+  n.textContent = d.any
+    ? `Tonight has picked up ${d.bits.join(", ")}. Resetting puts every time back to the `
+      + `running order as it stood before the night started.`
+    : "The running order is on its original times.";
 }
 
 const hhmm24 = ms => {
@@ -3027,6 +3102,16 @@ $("#addseg").addEventListener("click", () => {
   cfg.segments.push({ title: "New segment", min: 15, brk: false, note: "" });
   save(); segRows();
 });
+$("#replan").addEventListener("click", () => {
+  const d = planDrift();
+  if (!d.any) return;
+  if (!confirm(`Put the running order back to its original times?\n\n`
+             + `This undoes ${d.bits.join(", ")}. Nothing else changes — no segment is `
+             + `added, removed or renamed, and anything you added tonight keeps the `
+             + `length you gave it.`)) return;
+  restorePlan();
+});
+
 $("#loadsn").addEventListener("click", () => {
   const msg = current().state === "run"
     ? "The night is already running. Replacing the schedule wipes everything that has "
@@ -3035,7 +3120,7 @@ $("#loadsn").addEventListener("click", () => {
   if (!confirm(msg)) return;
   cfg.segments = STD_NIGHT.map(s => Object.assign({}, s));
   cfg.overrides = {}; cfg.extra = {}; cfg.anchorSlip = 0;
-  save(); segRows();
+  snapPlan(); save(); segRows();
 });
 
 // Ops codes (SN20260902 and friends) are internal — ticketing and filing only.
@@ -3226,7 +3311,7 @@ $("#parsebtn").addEventListener("click", () => {
   cfg.segments = got.segments;
   if (got.start) cfg.start = got.start;
   cfg.overrides = {}; cfg.extra = {}; cfg.anchorSlip = 0;
-  save(); segRows();
+  snapPlan(); save(); segRows();
   $("#pastebox").value = "";
   $("#pastewrap").open = false;                 // hand the list straight back
   $("#parsenote").textContent = `Read ${got.segments.length} segments — edit them below.`;
@@ -4746,6 +4831,7 @@ function renderSetupLive() {
   $("#livenow").innerHTML = `On the screen now: <b>${esc(seg.title)}</b>`
     + (nxt ? ` &middot; then ${esc(nxt.title)}` : "");
   $("#livecd").textContent = dur(c.ends[c.idx] - nowSched());
+  planNote();                        // slip can arrive from the keyboard mid-event
 }
 
 function checkStore() {
@@ -4858,6 +4944,11 @@ $("#resetbtn").addEventListener("click", () => {
   window.addEventListener("beforeunload", () => {
     if (secondWin && !secondWin.closed) secondWin.close();
   });
+
+  /* A night set up before the plan existed has none on file. Capture one now,
+     while there is still time for it to be the plan rather than tonight —
+     save() only takes the snapshot if the night has not started. */
+  if (!cfg.plan) save();
 
   if (!stored) openSetup();            // first run has nothing to show yet
   else reveal(8000);                   // otherwise show the way out long enough to find
