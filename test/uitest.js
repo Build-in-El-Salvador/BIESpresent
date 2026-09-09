@@ -4,7 +4,24 @@ const { pathToFileURL } = require('url');
 const APP = pathToFileURL(require('path').join(__dirname, '..', 'BIESpresent.html')).href;
 let pass=0, fail=0;
 const ok=(n,c,d='')=>{ c?(pass++,console.log(`  ok    ${n}`)):(fail++,console.log(`  FAIL  ${n}  ${d}`)); };
-const D = '/private/tmp/claude-501/-Users-mike-Desktop-BIES-CORE/f0caea4f-2fcd-4552-9cac-9247e7218b20/scratchpad/';
+/* The sponsor tests need logos of three different shapes. They used to be
+   loose files in a scratch directory, which meant this suite passed or failed
+   depending on what happened to be lying around; now it draws its own. */
+const { PNG } = require('pngjs');
+const fs = require('fs');
+const D = require('os').tmpdir() + '/biespresent-test-';
+
+function plate(name, w, h, rgb) {
+  const png = new PNG({ width: w, height: h });
+  for (let i = 0; i < png.data.length; i += 4) {
+    png.data[i] = rgb[0]; png.data[i + 1] = rgb[1];
+    png.data[i + 2] = rgb[2]; png.data[i + 3] = 255;
+  }
+  fs.writeFileSync(D + name, PNG.sync.write(png));
+}
+plate('logo-wide.png',   600, 160, [249, 245, 244]);
+plate('logo-square.png', 400, 400, [255,  91,   0]);
+plate('logo-tall.png',   200, 520, [  0,  71, 171]);
 
 (async () => {
   const b = await chromium.launch({channel:'chrome'});

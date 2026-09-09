@@ -280,11 +280,48 @@ Photos and video, for cut-aways and for the reel during the mingling hour.
 - **Send to screen** puts one item up. Video starts playing; **Play/Pause** and **Restart**
   reach the second screen, so the control window shows the room's frame rather than drifting
   along on a second playback of its own.
-- **Start the reel** runs through the photos in order at whatever interval you set, looping
-  if you tick it. It is driven from the control window, so leave that window open. Drag the
+- **Start the reel** runs through the photos in order, skipping videos. **Shuffle the
+  photos** reorders them and leaves any video where it was, so a clip that belongs at a
+  particular moment stays there.
+- While it runs you have **Hold**, and **←  →** to skip by hand. Skipping restarts the dwell,
+  so you never get a photo that flashes past because it inherited the last one's remaining
+  time. Everything else — speed, crop, transition, Ken Burns — can be changed mid-reel and
+  the second screen picks it up on the next tick, including for the photo already on the wall.
+- It is driven from the control window, so leave that window open. When a reel that is not
+  looping reaches the end it hands the wall back to the board rather than freezing on the
+  last photo. Drag the
   rows to set the order the photos appear in.
 - **Overlay next segment** prints the next item and its countdown along the bottom of
   whatever is playing. Useful over a photo reel, distracting over a speaker's slide.
+
+### Portrait photos on a landscape screen
+
+Phones shoot portrait and the screen is 16:9, so every reel has to answer what to do with
+the mismatch. Three ways, set for the reel and overridable per photo in the list:
+
+| | What it does | When |
+|---|---|---|
+| **Fit** | The whole photo, black bars down the sides | Nothing is ever cropped away |
+| **Fill** | Crops into the photo until it fills the screen | Landscape shots, where the crop is slight |
+| **Blurred backdrop** | The whole photo, over a soft blown-up blur of itself | Portrait shots — no bars, nothing cropped |
+
+**Fill will cut heads off portrait photos.** A tall photo on a wide screen loses most of its
+height, so use it for landscape shots and reach for the blurred backdrop for the tall ones.
+Each row in the media list has its own crop setting if one photo needs different treatment
+from the rest.
+
+### Transitions and Ken Burns
+
+**Transition** is Cut, Crossfade or Dip to black, with a length in milliseconds. Crossfade at
+about 800ms suits a photo reel; a cut suits anything the room is meant to read quickly.
+Skipping faster than the transition length simply stacks the dissolves — nothing is stranded
+on screen.
+
+**Ken Burns** is the slow zoom and drift across a still photograph — named after the
+documentary film-maker who made it his signature, because a static photo on a big screen
+looks dead and a slowly moving one does not. It alternates direction down the reel so the
+whole thing does not breathe in the same rhythm, and each push is timed to last a full dwell
+plus the dissolve, so it is still moving as the next photo arrives over it.
 
 Sound comes out of the screen facing the room, so plugging the laptop into the PA works the
 way you would expect and nothing is heard twice.
@@ -550,7 +587,7 @@ npm run test:fast    # the two pure-node suites, about a second
 npm test -- qr sched # only suites whose name contains one of these
 ```
 
-464 checks across 21 suites. Two run in plain node — the QR encoder against a reference
+496 checks across 22 suites. Two run in plain node — the QR encoder against a reference
 implementation, and the schedule maths. The rest drive **the real Google Chrome installed on
 this machine**, not a bundled Chromium, because Chrome is what runs the board on the night;
 `playwright-core` is the dependency precisely so nothing downloads a browser. Chrome has to

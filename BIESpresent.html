@@ -281,6 +281,46 @@ body.show-cursor{cursor:default}
 #airstage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 #airstage img,#airstage video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
 #airstage embed{width:100%;height:100%;border:0}
+/* ── How a photo sits on a 16:9 wall ─────────────────────────────────────
+   Phones shoot portrait and the screen is landscape, so every reel has to
+   answer what to do with the mismatch. Fit leaves bars, fill crops into them,
+   and the backdrop keeps the whole photo over a blurred blow-up of itself —
+   which is usually the one that looks deliberate rather than broken. */
+#airstage{overflow:hidden}
+#airstage > .shot{
+  position:absolute; inset:0; opacity:1;
+  transition:opacity var(--tms,0ms) linear;
+}
+#airstage > .shot.enter{opacity:0}
+#airstage .bg{
+  position:absolute; inset:0;
+  background-size:cover; background-position:center;
+  filter:blur(44px) brightness(.5); transform:scale(1.2);
+}
+/* No black plate of its own: the general rule below paints one on every image
+   in here, which would sit right on top of the blurred backdrop. */
+#airstage .fg{position:absolute;inset:0;width:100%;height:100%;display:block;background:none}
+#airstage .fg.fit{object-fit:contain}
+#airstage .fg.fill{object-fit:cover}
+
+/* Ken Burns — the slow push across a still that stops a photograph looking
+   dead on screen. Two directions, alternating down the reel, so it does not
+   breathe in the same rhythm on every frame. */
+@keyframes kb-in{
+  from{transform:scale(1) translate(0,0)}
+  to  {transform:scale(var(--kz,1.08)) translate(-1.2%,-0.8%)}
+}
+@keyframes kb-out{
+  from{transform:scale(var(--kz,1.08)) translate(1.2%,0.8%)}
+  to  {transform:scale(1) translate(0,0)}
+}
+#airstage .fg.ken{animation:kb-in var(--kms,12s) linear forwards}
+#airstage .fg.ken.alt{animation-name:kb-out}
+@media (prefers-reduced-motion:reduce){
+  #airstage .fg.ken{animation:none}
+  #airstage > .shot{transition:none}
+}
+
 #airslug{
   position:absolute; left:0; right:0; bottom:0; z-index:2;
   display:none; align-items:baseline; gap:1.6vw;
@@ -447,7 +487,14 @@ body.audience.not-full #fshint{display:block}
   border:1px solid var(--hair); border-radius:6px;
   font-family:var(--font-sans); font-size:15px; padding:10px 12px;
 }
-#setup input:focus,#setup textarea:focus{outline:2px solid var(--cobalt);outline-offset:1px}
+#setup select{
+  width:100%; background:var(--navy-lift); color:var(--snow);
+  border:1px solid var(--hair); border-radius:6px;
+  font-family:var(--font-sans); font-size:15px; padding:10px 12px;
+}
+#setup input:focus,#setup textarea:focus,#setup select:focus{
+  outline:2px solid var(--cobalt); outline-offset:1px;
+}
 #setup textarea{min-height:84px;resize:vertical;line-height:1.5}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
 .grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:18px;margin-bottom:20px}
@@ -1175,6 +1222,7 @@ body.audience.not-full #fshint{display:block}
       <input type="file" id="f-mediaimg" accept="image/*" multiple hidden>
       <label class="btn" for="f-mediavid">+ Video</label>
       <input type="file" id="f-mediavid" accept="video/*" multiple hidden>
+      <button class="btn ghost" id="mdshuffle">Shuffle the photos</button>
     </div>
 
     <div id="medialist"></div>
@@ -1197,16 +1245,41 @@ body.audience.not-full #fshint{display:block}
     <div class="grid3">
       <div><label for="f-interval">Seconds per photo</label>
         <input type="number" id="f-interval" min="2" max="120"></div>
+      <div><label for="f-trans">Transition</label>
+        <select id="f-trans">
+          <option value="cut">Cut</option>
+          <option value="fade">Crossfade</option>
+          <option value="black">Dip to black</option>
+        </select></div>
+      <div><label for="f-transms">Transition length</label>
+        <input type="number" id="f-transms" min="0" max="4000" step="100"></div>
+    </div>
+    <div class="grid2">
+      <div><label for="f-fit">Portrait and odd-shaped photos</label>
+        <select id="f-fit">
+          <option value="fit">Fit &mdash; the whole photo, bars down the sides</option>
+          <option value="fill">Fill &mdash; crop it to fill the screen</option>
+          <option value="blur">Blurred backdrop &mdash; whole photo, no bars</option>
+        </select></div>
       <div><label>&nbsp;</label>
-        <label class="tog"><input type="checkbox" id="f-showloop"> Loop the reel</label></div>
-      <div><label>&nbsp;</label>
-        <label class="tog"><input type="checkbox" id="f-showoverlay"> Overlay countdown</label></div>
+        <div style="display:flex;gap:20px;align-items:center;height:44px">
+          <label class="tog"><input type="checkbox" id="f-ken"> Ken Burns</label>
+          <label class="tog"><input type="checkbox" id="f-showloop"> Loop</label>
+          <label class="tog"><input type="checkbox" id="f-showoverlay"> Countdown</label>
+        </div></div>
     </div>
     <div class="btnrow">
       <button class="btn primary" id="reelstart">Start the reel on screen</button>
+      <button class="btn ghost" id="reelback" title="Previous photo">&#8592;</button>
+      <button class="btn ghost" id="reelhold" title="Hold on this photo">Hold</button>
+      <button class="btn ghost" id="reelnext" title="Next photo">&#8594;</button>
       <button class="btn ghost" id="reelstop">Stop the reel</button>
     </div>
-    <p class="sub">The reel runs through the photos above in order, skipping videos. It is
+    <p class="sub">Everything here can be changed while the reel is running, and the second
+      screen picks it up &mdash; the speed, the crop, the transition. <strong>Ken Burns</strong>
+      is the slow zoom across a still that stops a photograph looking dead on a big screen.
+      A photo can override the crop for itself in the list above. The reel runs through the
+      photos in order, skipping videos, and is
       driven from this window, so leave it open &mdash; the second screen follows it.</p>
   </div>
 
@@ -1713,7 +1786,11 @@ function defaults() {
     music: [],     // { id, vid, artist, song } — YouTube queue
     vol: 0.8,      // the audio player's own level, not the laptop's
     audio: [],     // { id, name, mid } — local tracks, played from this window
-    show: { interval: 8, overlay: false, loop: false, sound: "air" }
+    show: { interval: 8, overlay: false, loop: false, sound: "air",
+            fit: "fit",        // fit | fill | blur — what to do with a portrait photo
+            trans: "fade",     // cut | fade | black
+            transMs: 800,
+            ken: false }       // Ken Burns: the slow zoom across a still
   };
 }
 
@@ -2043,15 +2120,56 @@ function renderChips(ctx) {
    Both windows render this the same way from the same record, so there is no
    handoff to go wrong: the operator writes an id into the live state and each
    window fetches the file and mounts it itself. */
-let mounted = { key: null, url: null, node: null, kind: null };
+let mounted = { key: null, look: null, url: null, node: null, kind: null };
 let mounting = null, lastCmd = -1;
 
 function clearAir() {
   if (mounted.url) { try { URL.revokeObjectURL(mounted.url); } catch (_) {} }
-  mounted = { key: null, url: null, node: null, kind: null };
+  mounted = { key: null, look: null, url: null, node: null, kind: null };
   const st = $("#airstage");
   if (st) st.innerHTML = "";
   lastCmd = -1;
+}
+
+/* One photo on the stage: the picture itself, and under it the blurred
+   blow-up when that treatment is chosen. Built rather than reused, because a
+   photo's treatment can change under the operator's hand mid-reel. */
+function buildShot(url, a) {
+  const fit = (a.fit === "fill" || a.fit === "blur") ? a.fit : "fit";
+  const wrap = document.createElement("div");
+  wrap.className = "shot";
+  if (fit === "blur") {
+    const bg = document.createElement("div");
+    bg.className = "bg";
+    bg.style.backgroundImage = 'url("' + url + '")';
+    wrap.appendChild(bg);
+  }
+  const im = document.createElement("img");
+  im.alt = "";
+  im.className = "fg " + (fit === "fill" ? "fill" : "fit");
+  if (a.ken) {
+    im.classList.add("ken");
+    if ((a.seq || 0) % 2) im.classList.add("alt");   // alternate the direction
+    im.style.setProperty("--kms", Math.max(2000, +a.kenMs || 12000) + "ms");
+  }
+  im.src = url;
+  wrap.appendChild(im);
+  return wrap;
+}
+
+/* A photo on its way out has to stay on screen for the length of the
+   transition, so it cannot go with the rest of the stage. Its object URL is
+   released when it finally does go. */
+function retire(node, url, ms) {
+  const drop = () => {
+    if (node && node.parentNode) node.remove();
+    if (url) { try { URL.revokeObjectURL(url); } catch (_) {} }
+  };
+  if (!node) { if (url) { try { URL.revokeObjectURL(url); } catch (_) {} } return; }
+  if (!ms) { drop(); return; }
+  node.style.setProperty("--tms", ms + "ms");
+  requestAnimationFrame(() => { node.style.opacity = "0"; });
+  setTimeout(drop, ms + 80);
 }
 
 /* Transport for video. The operator stamps a command with a sequence number;
@@ -2082,14 +2200,29 @@ function renderAir() {
   }
   view.classList.add("live");
 
-  if (a.key !== mounted.key && mounting !== a.key) {
-    mounting = a.key;
+  /* A photo's treatment can be changed while it is still on the wall, so what
+     is mounted is identified by the picture *and* how it is being shown. */
+  const look = [a.fit || "", a.ken ? 1 : 0, a.kenMs || 0].join("|");
+  const ident = a.key + "#" + look;
+
+  if ((a.key !== mounted.key || look !== mounted.look) && mounting !== ident) {
+    mounting = ident;
     mediaGet(a.id).then(rec => {
-      if (mounting !== a.key) return;          // superseded while we were reading
+      if (mounting !== ident) return;          // superseded while we were reading
       mounting = null;
-      clearAir();
-      if (!rec || !rec.blob) return;
+      if (!rec || !rec.blob) { clearAir(); return; }
+
       const url = URL.createObjectURL(rec.blob);
+      const isImg = a.kind !== "video" && a.kind !== "pdf";
+
+      /* Only ever dissolve one photo into another, and only when it is a
+         different photo — re-cropping the one already up should snap, not
+         fade through itself. */
+      const ms = (isImg && mounted.kind === "img" && a.key !== mounted.key &&
+                  a.trans && a.trans !== "cut")
+               ? Math.max(0, Math.min(4000, +a.transMs || 0)) : 0;
+      const old = mounted.node, oldUrl = mounted.url;
+
       let node;
       if (a.kind === "video") {
         node = document.createElement("video");
@@ -2108,11 +2241,30 @@ function renderAir() {
         node.src = url + "#toolbar=0&navpanes=0&scrollbar=0&view=Fit"
                        + (a.page ? "&page=" + a.page : "");
       } else {
-        node = document.createElement("img");
-        node.alt = ""; node.src = url;
+        node = buildShot(url, a);
       }
-      mounted = { key: a.key, url, node, kind: a.kind };
+
+      if (ms) mounted = { key: null, look: null, url: null, node: null, kind: null };
+      else    clearAir();                       // a cut takes the stage with it
+
       $("#airstage").appendChild(node);
+      mounted = { key: a.key, look, url, node, kind: isImg ? "img" : a.kind };
+
+      if (ms) {
+        node.classList.add("enter");
+        if (a.trans === "black") {
+          /* Out first, then in, so the room gets a beat of black between two
+             photographs instead of them ghosting through each other. */
+          node.style.setProperty("--tms", (ms / 2) + "ms");
+          retire(old, oldUrl, ms / 2);
+          setTimeout(() => node.classList.remove("enter"), ms / 2 + 40);
+        } else {
+          node.style.setProperty("--tms", ms + "ms");
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => node.classList.remove("enter")));
+          retire(old, oldUrl, ms);
+        }
+      }
       applyCmd(a);
     }).catch(() => { mounting = null; });
   } else if (mounted.node) {
@@ -3378,7 +3530,11 @@ function mediaRows() {
       <span class="tag${live || !haveFile(m.mid) ? " hot" : ""}">${
         !haveFile(m.mid) ? "file missing" : m.kind === "video" ? "video" : "photo"}</span>
       <input type="text" data-f="name" value="${esc(m.name)}">
-      <span class="mt">${fmtSize(m.size)}</span>
+      ${m.kind === "image" ? `<select data-f="fit" title="How this one is cropped">
+        ${[["", "crop: reel default"], ["fit", "crop: fit"], ["fill", "crop: fill"],
+           ["blur", "crop: blurred backdrop"]].map(([v, t]) =>
+          `<option value="${v}"${(m.fit || "") === v ? " selected" : ""}>${t}</option>`).join("")}
+      </select>` : `<span class="mt">${fmtSize(m.size)}</span>`}
       <button class="ic up" title="Move up"${i ? "" : " disabled"}>&#8593;</button>
       <button class="ic dn" title="Move down"${i < cfg.media.length - 1 ? "" : " disabled"}>&#8595;</button>
       <button class="btn ghost pv">Preview</button>
@@ -3434,9 +3590,10 @@ function mdSend() {
   const m = curMedia();
   if (!m) return;
   reelStop();
-  const air = { key: "m:" + m.id, kind: m.kind === "video" ? "video" : "img", id: m.mid,
-                overlay: !!cfg.show.overlay, sound: cfg.show.sound, loop: !!cfg.show.loop };
-  if (m.kind === "video") air.cmd = { n: ++cmdSeq, act: "play", t: 0 };
+  const air = m.kind === "video"
+    ? { key: "m:" + m.id, kind: "video", id: m.mid, overlay: !!cfg.show.overlay,
+        sound: cfg.show.sound, loop: !!cfg.show.loop, cmd: { n: ++cmdSeq, act: "play", t: 0 } }
+    : airFor(m, "m:" + m.id, 0);
   goAir(air);
 }
 
@@ -3449,29 +3606,119 @@ function mdCmd(act, t) {
 /* ── The photo reel ──────────────────────────────────────────────────────
    Driven from this window rather than from a timestamp both windows work out
    for themselves, so there is one clock deciding when the picture changes and
-   the second screen simply follows the id. */
-let reelT = null, reelI = 0;
-function reelStop() { clearInterval(reelT); reelT = null; $("#reelstop").disabled = true; }
-function reelStart() {
-  const shots = cfg.media.filter(m => m.kind === "image");
-  if (!shots.length) { alert("Add some photos first."); return; }
-  reelI = 0;
-  const put = () => {
-    const m = shots[reelI];
-    goAir({ key: "reel:" + m.id, kind: "img", id: m.mid,
-            overlay: !!cfg.show.overlay, sound: cfg.show.sound });
+   the second screen simply follows the id it is given. That also means the
+   speed, the treatment and the transition can all be changed while it runs. */
+let reelT = null, reelI = 0, reelShots = [], reelHeld = false;
+
+const photos    = () => cfg.media.filter(m => m.kind === "image");
+const reelMs    = () => Math.max(2, +cfg.show.interval || 8) * 1000;
+const transMs   = () => Math.max(0, Math.min(4000, +cfg.show.transMs || 0));
+const reelLive  = () => reelShots.length > 0;
+
+// A photo's own treatment wins; otherwise it takes the reel's.
+const fitOf = m => (m && m.fit) ? m.fit : (cfg.show.fit || "fit");
+
+/* Everything the other window needs to draw this photo the same way. The Ken
+   Burns push is told to last a whole dwell plus the dissolve, so it is still
+   moving as the next photo comes up over it rather than stopping dead. */
+function airFor(m, key, seq) {
+  return {
+    key, kind: "img", id: m.mid,
+    overlay: !!cfg.show.overlay, sound: cfg.show.sound,
+    fit: fitOf(m),
+    trans: cfg.show.trans || "cut", transMs: transMs(),
+    ken: !!cfg.show.ken, kenMs: reelMs() + transMs(),
+    seq: seq || 0
   };
-  put();
+}
+
+function reelPut() {
+  const m = reelShots[reelI];
+  if (m) goAir(airFor(m, "reel:" + m.id, reelI));
+}
+
+function reelArm() {
   clearInterval(reelT);
-  reelT = setInterval(() => {
-    reelI++;
-    if (reelI >= shots.length) {
-      if (!cfg.show.loop) { reelStop(); return; }
-      reelI = 0;
-    }
-    put();
-  }, Math.max(2, +cfg.show.interval || 8) * 1000);
-  $("#reelstop").disabled = false;
+  reelT = reelHeld ? null : setInterval(() => reelStep(1), reelMs());
+}
+
+function reelStep(n) {
+  if (!reelShots.length) return;
+  reelI += n;
+  if (reelI >= reelShots.length) {
+    if (!cfg.show.loop) { reelStop(); airOff(); return; }
+    reelI = 0;
+  }
+  if (reelI < 0) reelI = reelShots.length - 1;
+  reelPut();
+}
+
+function reelStart() {
+  reelShots = photos();
+  if (!reelShots.length) { alert("Add some photos first."); return; }
+  reelI = 0; reelHeld = false;
+  reelPut(); reelArm(); reelButtons();
+}
+
+function reelStop() {
+  clearInterval(reelT); reelT = null;
+  reelShots = []; reelHeld = false;
+  reelButtons();
+}
+
+// Skipping by hand restarts the dwell, or the next photo arrives too soon.
+function reelNudge(n) { if (reelLive()) { reelStep(n); reelArm(); } }
+
+function reelHold() {
+  if (!reelLive()) return;
+  reelHeld = !reelHeld;
+  reelArm(); reelButtons();
+}
+
+function reelButtons() {
+  const on = reelLive();
+  ["#reelstop", "#reelhold", "#reelnext", "#reelback"].forEach(k => {
+    const e = $(k); if (e) e.disabled = !on;
+  });
+  const h = $("#reelhold");
+  if (h) h.textContent = reelHeld ? "Resume" : "Hold";
+}
+
+/* Changing how photos are shown has to reach the one already on the wall, not
+   only the next one — otherwise the operator picks a crop, sees nothing
+   happen, and picks it again. */
+function airRestyle() {
+  if (!rt.air || rt.air.kind !== "img") return;
+  const m = cfg.media.find(x => rt.air.key === "reel:" + x.id || rt.air.key === "m:" + x.id);
+  rt.air = Object.assign({}, rt.air, {
+    fit: fitOf(m),
+    trans: cfg.show.trans || "cut", transMs: transMs(),
+    ken: !!cfg.show.ken, kenMs: reelMs() + transMs()
+  });
+  publishLive(); tick();
+}
+
+function shuffleIn(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+}
+
+/* Shuffles the photographs among themselves and leaves any video where it
+   was, so a clip that belongs at a particular point in the night stays there. */
+function shufflePhotos() {
+  const slots = [], items = [];
+  cfg.media.forEach((m, i) => { if (m.kind === "image") { slots.push(i); items.push(m); } });
+  if (items.length < 2) return;
+  shuffleIn(items);
+  slots.forEach((at, k) => { cfg.media[at] = items[k]; });
+  save(); paintShow();
+  if (reelLive()) {                    // carry the running reel onto the new order
+    reelShots = photos(); reelI = 0;
+    reelPut(); reelArm();
+  }
+  markSaved("Photos shuffled");
 }
 
 /* ── Music ───────────────────────────────────────────────────────────── */
@@ -3758,9 +4005,13 @@ function paintShow() {
 
 function fillShow() {
   $("#f-interval").value      = cfg.show.interval;
+  $("#f-transms").value       = transMs();
+  $("#f-trans").value         = cfg.show.trans || "cut";
+  $("#f-fit").value           = cfg.show.fit || "fit";
+  $("#f-ken").checked         = !!cfg.show.ken;
   $("#f-showloop").checked    = !!cfg.show.loop;
   $("#f-showoverlay").checked = !!cfg.show.overlay;
-  $("#reelstop").disabled     = !reelT;
+  reelButtons();
 }
 
 /* ── Wiring for the show-control tabs ────────────────────────────────── */
@@ -3890,6 +4141,13 @@ bind("#medialist", "input", e => {
   const m = cfg.media.find(x => x.id === row.dataset.id);
   if (m && e.target.dataset.f === "name") { m.name = e.target.value; save(); }
 });
+// A select fires input as well as change; only one of them should do the work,
+// and neither may redraw the list the operator is still pointing at.
+bind("#medialist", "change", e => {
+  const row = e.target.closest(".mrow"); if (!row) return;
+  const m = cfg.media.find(x => x.id === row.dataset.id);
+  if (m && e.target.dataset.f === "fit") { m.fit = e.target.value; save(); airRestyle(); }
+});
 bind("#mdthumbs", "click", e => {
   if (e.target.tagName !== "IMG") return;
   mdSel = e.target.dataset.id;
@@ -3906,7 +4164,25 @@ bind("#mdback", "click", () => mdCmd("play", 0));
 
 bind("#reelstart", "click", reelStart);
 bind("#reelstop",  "click", () => { reelStop(); airOff(); });
-bind("#f-interval", "input", e => { cfg.show.interval = Math.max(2, +e.target.value || 8); save(); });
+bind("#reelhold",  "click", reelHold);
+bind("#reelnext",  "click", () => reelNudge(1));
+bind("#reelback",  "click", () => reelNudge(-1));
+bind("#mdshuffle", "click", shufflePhotos);
+
+/* Every one of these reaches the reel while it is running: the dwell is
+   re-armed on the new speed, and the photo already on the wall is redrawn
+   with the new treatment instead of waiting its turn. */
+bind("#f-interval", "input", e => {
+  cfg.show.interval = Math.max(2, +e.target.value || 8);
+  save(); if (reelLive()) reelArm(); airRestyle();
+});
+bind("#f-transms", "input", e => {
+  cfg.show.transMs = Math.max(0, Math.min(4000, +e.target.value || 0));
+  save(); airRestyle();
+});
+bind("#f-trans", "change", e => { cfg.show.trans = e.target.value; save(); airRestyle(); });
+bind("#f-fit",   "change", e => { cfg.show.fit   = e.target.value; save(); airRestyle(); });
+bind("#f-ken",   "change", e => { cfg.show.ken   = e.target.checked; save(); airRestyle(); });
 bind("#f-showloop", "change", e => { cfg.show.loop = e.target.checked; save(); });
 bind("#f-showoverlay", "change", e => {
   cfg.show.overlay = e.target.checked;
