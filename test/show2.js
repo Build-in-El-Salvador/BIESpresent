@@ -97,9 +97,18 @@ const ok = (n, c, d) => { c ? (pass++, console.log('  ok   ' + n))
   await p.click('#airoverlay');
   await p.waitForTimeout(600);
   ok('slug on', await p.locator('#airslug').evaluate(e => e.classList.contains('on')));
+  // The overlay cycles, so pin it to the countdown card before reading it —
+  // otherwise this passes or fails on which card happened to be up.
+  await p.evaluate(() => {
+    cfg.show.slugSponsors = false; cfg.show.slugUpcoming = false; save(); tick();
+  });
+  await p.waitForTimeout(400);
   const slugT = await p.locator('#airslugt').textContent();
   ok('slug carries the next segment', slugT.length > 0, slugT);
   ok('slug carries a countdown', /\d/.test(await p.locator('#airslugc').textContent()));
+  await p.evaluate(() => {
+    cfg.show.slugSponsors = true; cfg.show.slugUpcoming = true; save(); tick();
+  });
 
   console.log('\n— the photo reel —');
   await p.fill('#f-interval', '2');

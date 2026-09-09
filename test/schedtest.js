@@ -49,24 +49,38 @@ S.slip(-5);
 ok("doors pulled to 6:25 PM", S.clockStr(S.schedule().starts[0])==="6:25 PM", S.clockStr(S.schedule().starts[0]));
 ok("anchorSlip recorded", S.cfg.anchorSlip===-5, String(S.cfg.anchorSlip));
 
-console.log("\n— advance early re-chains —");
+console.log("\n— advancing early moves us, and leaves the times alone —");
 reset();
 at(19,00);                                   // mingling (idx 1), talk not due till 7:40
 ok("in mingling", S.current().idx===1, "idx "+S.current().idx);
+const wasStarts = S.schedule().starts.map(S.clockStr);
 S.advance();                                 // start the MC now
 ok("MC segment is live", S.current().idx===2, "idx "+S.current().idx);
-ok("MC pinned to 7:00 PM", S.clockStr(S.schedule().starts[2])==="7:00 PM", S.clockStr(S.schedule().starts[2]));
-ok("talk follows at 7:10 PM", S.clockStr(S.schedule().starts[3])==="7:10 PM", S.clockStr(S.schedule().starts[3]));
+ok("nothing was pinned", JSON.stringify(S.cfg.overrides)==="{}", JSON.stringify(S.cfg.overrides));
+ok("every published time is where it was",
+   JSON.stringify(S.schedule().starts.map(S.clockStr))===JSON.stringify(wasStarts),
+   S.schedule().starts.map(S.clockStr).join(" "));
+ok("the MC still says 7:30 PM", S.clockStr(S.schedule().starts[2])==="7:30 PM", S.clockStr(S.schedule().starts[2]));
+ok("and the talk still says 7:40 PM", S.clockStr(S.schedule().starts[3])==="7:40 PM", S.clockStr(S.schedule().starts[3]));
 
-console.log("\n— advancing then going back clears stale pins —");
+console.log("\n— the clock catches up on its own —");
+reset();
+at(19,00); S.advance();                       // ahead of the clock, in the MC
+ok("ahead of the clock", S.current().idx===2, "idx "+S.current().idx);
+at(19,45);                                    // the clock is now inside the talk
+ok("the clock overtakes the operator's floor", S.current().idx===3, "idx "+S.current().idx);
+ok("still nothing pinned", JSON.stringify(S.cfg.overrides)==="{}", JSON.stringify(S.cfg.overrides));
+
+console.log("\n— going back takes the wheel —");
 reset();
 at(19,00); S.advance(); S.advance();          // jumped to the talk (idx 3)
 ok("now in the talk", S.current().idx===3, "idx "+S.current().idx);
 at(19,05); S.back();                          // back to the MC
 ok("back in the MC segment", S.current().idx===2, "idx "+S.current().idx);
-ok("stale pin on idx 3 cleared", S.cfg.overrides[3]===undefined, JSON.stringify(S.cfg.overrides));
+ok("and the clock no longer drives it", S.rt.autoAdvance===false);
 at(19,20);
-ok("does not jump forward again", S.current().idx===3, "idx "+S.current().idx);
+ok("so it stays where it was put", S.current().idx===2, "idx "+S.current().idx);
+ok("with the schedule untouched", JSON.stringify(S.cfg.overrides)==="{}", JSON.stringify(S.cfg.overrides));
 
 console.log("\n— manual mode overruns instead of advancing —");
 reset();

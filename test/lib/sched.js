@@ -168,10 +168,12 @@ function current() {
   if (!n) return { idx: -1, starts, ends, state: "empty" };
 
   if (rt.autoAdvance) {
-    if (now < starts[0])   return { idx: -1, starts, ends, state: "pre" };
-    if (now >= ends[n - 1]) return { idx: n - 1, starts, ends, state: "post" };
-    let i = 0;
+    let i = -1;
     for (let k = 0; k < n; k++) if (now >= starts[k]) i = k;
+    if (now >= ends[n - 1]) i = n;
+    if (rt.manualIndex > i) i = rt.manualIndex;
+    if (i < 0)  return { idx: -1,    starts, ends, state: "pre" };
+    if (i >= n) return { idx: n - 1, starts, ends, state: "post" };
     return { idx: i, starts, ends, state: "run" };
   }
   if (rt.manualIndex < 0)  return { idx: -1, starts, ends, state: "pre" };
@@ -222,33 +224,17 @@ function advance() {
   const { idx, state } = current();
   const n = cfg.segments.length;
   if (!n || state === "post") return;
-  const target = state === "pre" ? 0 : idx + 1;
-
-  if (target >= n) {                       // finishing the last segment early
-    const { starts } = schedule();
-    const base = Number(cfg.segments[n - 1].min) || 0;
-    cfg.extra[n - 1] = (nowSched() - starts[n - 1]) / 60000 - base;
-    if (!rt.autoAdvance) rt.manualIndex = n;
-  } else {
-    pin(target, nowSched());
-    if (!rt.autoAdvance) rt.manualIndex = target;
-  }
-  save(); tick();
+  rt.manualIndex = state === "pre" ? 0 : idx + 1;
+  tick();
 }
 
 function back() {
   const { idx, state } = current();
   const n = cfg.segments.length;
   if (!n || state === "pre") return;
-  const target = state === "post" ? n - 1 : idx - 1;
-  if (target < 0) {
-    Object.keys(cfg.overrides).forEach(k => delete cfg.overrides[k]);
-    rt.manualIndex = -1;
-  } else {
-    pin(target, nowSched());
-    if (!rt.autoAdvance) rt.manualIndex = target;
-  }
-  save(); tick();
+  rt.autoAdvance = false;
+  rt.manualIndex = state === "post" ? n - 1 : idx - 1;
+  tick();
 }
 
 // Before the night starts this moves the whole thing; once running it stretches

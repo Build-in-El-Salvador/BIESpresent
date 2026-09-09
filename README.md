@@ -129,8 +129,8 @@ standard night mid-event without warning you first that it wipes everything.
 | Key | What it does |
 | --- | --- |
 | `F` | Fullscreen |
-| `→` or `N` | Start the next segment **now** |
-| `←` | Go back one segment |
+| `→` / `←` | Next / previous **slide**, whenever a deck is on the wall — otherwise the next / previous **segment** |
+| `N` / `P` | Start the next segment now / go back one, deck or no deck |
 | `+` / `−` | Push the rest of the night later / earlier by **5 minutes** |
 | `Shift` `+` / `−` | Same, by **1 minute** |
 | `A` | Auto-advance on/off |
@@ -138,9 +138,10 @@ standard night mid-event without warning you first that it wipes everything.
 | `1` `2` `3` `4` | Hold one panel — tonight / upcoming / QR / partners |
 | `R` | Resume panel rotation |
 | `B` | Blackout — clean screen for the projector |
+| `T` | Hide / show the clock times on the running order |
 | `E` | Edit tonight's schedule (same as the **Edit tonight** button) |
 | `S` | Send the audience view to the second screen |
-| `Page ↓` / `Page ↑` | Next / previous slide of the deck on the wall — what a presenter's clicker sends |
+| `Page ↓` / `Page ↑` | Next / previous slide — what a presenter's clicker sends. So do `↓` `↑` |
 | `X` | Take whatever is on the screen off air |
 | `D` | Rehearse — replay the whole night in about 50 seconds |
 | `?` | Show the key list on screen (or the **Keys** button) |
@@ -157,13 +158,23 @@ It always does. The board is built to describe *tonight*, not the plan.
 - **The speaker is overrunning?** Press `+` while their segment is live. That segment
   stretches and everything after it moves with it. A chip in the corner starts reading
   "15 min behind" so the team can see the damage.
-- **Finished early?** Press `→` to start the next thing immediately. Everything after it
-  re-chains from that moment.
+- **Finished early?** Press `→` (or `N`) to start the next thing immediately. **This moves
+  where we are, not the times.** Everything on the running order stays as written; the board
+  simply jumps ahead of the clock, and the clock catches up on its own and carries on from
+  there. Moving through the night and re-timing it are two different jobs, and `+` / `−` is
+  the one that re-times it.
 
 By default the board advances on the clock by itself. Press `A` and it stops advancing and
 waits for you instead — and when a segment passes its planned end, the countdown turns
 orange and counts **up** (`+04:12`) rather than sitting at zero pretending everything is
-fine. Use manual mode when you want the screen to hold on a segment no matter what.
+fine. Use manual mode when you want the screen to hold on a segment no matter what. Pressing
+`←` also switches to manual, because going *back* means going against the clock; `A` hands
+it back.
+
+**Gone so far off plan that the printed times are a liability?** Press `T`, or tick *Hide the
+clock times on the screen* on the Schedule tab. The running order, the marker on where we
+are and the countdown all stay — only the clock times go, and only on the screen. You can
+still see and edit them in the control window while the room sees none of it.
 
 **Breaks take over the whole screen** with one enormous timer, because that is the moment
 the timer actually matters. Tick the "Break" box on any segment to get that.
@@ -254,9 +265,16 @@ control window, a thumbnail strip, and the countdown overlay. This is the one to
 anything the tech is driving.
 
 **PDF** — `+ PDF`. It goes up exactly as exported, at full quality, with Chrome's viewer
-chrome switched off. But its pages cannot be turned from here: Chrome ignores a page change
-once a PDF is loaded. Fine for a deck the speaker walks through on their own laptop, or one
-you scroll by hand.
+chrome switched off, and **the pages turn** — `→` `←`, `Page ↓` `Page ↑`, or the buttons in
+the control window. The deck's length is read out of the file, so the control window says
+*page 4 of 17* and the deck stops at its own last page rather than running off the end.
+
+The one cost is that Chrome's PDF viewer cannot be moved after it has loaded, so each page
+turn quietly loads a second copy of it. The page the room is looking at is held on screen
+until the new one has painted, so the wall never flashes black — but there is about a
+quarter of a second between the click and the change. For a deck being driven hard, slide
+images are still instant; run the PDF through **Convert Decks** (it accepts PDFs) and import
+the `slides/` folder instead.
 
 **PowerPoint / Keynote** — logged against the speaker with the tag **needs converting**, and
 that is all. Nothing in a browser can lay out a `.pptx`. Listing it is the point: the gap
@@ -265,9 +283,12 @@ shows up while you are setting up rather than when the speaker stands up.
 Each row takes a **speaker name** and a **segment**, so the running order for the night is
 visible in one place.
 
-Once a deck is on the wall, **Page ↓ / Page ↑ move it** — which is exactly what a presenter's
-clicker sends, so the speaker can drive their own slides off the board. `B` still blacks the
-screen out no matter what is playing.
+Once a deck is on the wall the **arrow keys move the deck, not the running order** — and so
+do `Page ↓` / `Page ↑` and `↓` / `↑`, which between them cover every USB presenter clicker
+worth having, so the speaker can drive their own slides off the board. `N` and `P` still move
+the running order underneath. The control window's preview follows the wall, so what you are
+looking at is never a page behind the room. `B` still blacks the screen out no matter what
+is playing.
 
 If a row says **files missing**, the browser has thrown the files away (cleared storage, or
 an event file imported onto a different laptop — the JSON carries the running order, never
@@ -291,8 +312,8 @@ Photos and video, for cut-aways and for the reel during the mingling hour.
   looping reaches the end it hands the wall back to the board rather than freezing on the
   last photo. Drag the
   rows to set the order the photos appear in.
-- **Overlay next segment** prints the next item and its countdown along the bottom of
-  whatever is playing. Useful over a photo reel, distracting over a speaker's slide.
+- **Overlay** prints a strip along the bottom of whatever is playing, and **Logo** puts the
+  BIES bug in the top right corner. Both apply to anything on the wall, not just the reel.
 
 ### Portrait photos on a landscape screen
 
@@ -325,6 +346,43 @@ plus the dissolve, so it is still moving as the next photo arrives over it.
 
 Sound comes out of the screen facing the room, so plugging the laptop into the PA works the
 way you would expect and nothing is heard twice.
+
+### The on-air overlay
+
+The strip along the bottom of whatever is on the wall. Turn it on with **Overlay** beside the
+on-air bar; what it cycles through is set under **Screen panels → On-air overlay**.
+
+It rotates between three kinds of card:
+
+| Card | Reads |
+| --- | --- |
+| **Up next** | the next segment, with the live countdown |
+| **Proudly sponsored by** | every partner name, run together |
+| **See you at** | one card per upcoming event, with its date on the right |
+
+Plus an optional free line of your own — a hashtag, say — which gets a card under the name of
+tonight's event.
+
+**The countdown card is dealt back in between every other card**, not queued up as one of
+them. Whatever else is going round, the room is never more than one card away from knowing
+how long is left. That is the one thing this board does that a deck cannot, so it does not
+take its turn like everything else.
+
+Both windows work out which card is showing from the clock rather than the operator
+publishing it, so the second screen cannot fall a card behind.
+
+**Seconds per overlay card** sets the pace and **Overlay text size** the size — 60% to 220%.
+The default reads from the back of a small room; a long thin venue wants it bigger, and a
+speaker's slide usually wants it smaller so it stays out of the way.
+
+**Partners with no logo.** *Add name only* on the Screen panels tab takes a partner you have
+no artwork for. The name is set in the display face and stands in for the logo, on the
+partner panel and in the overlay both. Either way, the name in that field is what "Proudly
+sponsored by" reads out — so fill it in even for the ones that have logos.
+
+**The logo bug** is the BIES icon in the top right corner, on a transparent background with a
+soft shadow so it holds up over a bright photograph. **Logo**, next to **Overlay**, switches
+it on and off, and like the overlay it applies to anything on the wall.
 
 ### Music
 
@@ -587,7 +645,7 @@ npm run test:fast    # the two pure-node suites, about a second
 npm test -- qr sched # only suites whose name contains one of these
 ```
 
-496 checks across 22 suites. Two run in plain node — the QR encoder against a reference
+599 checks across 25 suites. Two run in plain node — the QR encoder against a reference
 implementation, and the schedule maths. The rest drive **the real Google Chrome installed on
 this machine**, not a bundled Chromium, because Chrome is what runs the board on the night;
 `playwright-core` is the dependency precisely so nothing downloads a browser. Chrome has to

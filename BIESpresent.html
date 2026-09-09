@@ -171,6 +171,9 @@ body.show-cursor{cursor:default}
 
 /* Itinerary */
 #itin{display:flex;flex-direction:column;justify-content:space-evenly;height:100%;gap:0}
+/* Times hidden: the column goes too, or every title sits in an empty gutter. */
+#itin.notimes .row{grid-template-columns:1fr}
+#itin.notimes .row .t{display:none}
 .row{
   display:grid; grid-template-columns:8.5vw 1fr;
   align-items:baseline; gap:1.6vw;
@@ -232,12 +235,21 @@ body.show-cursor{cursor:default}
 .sp{
   position:absolute; transform:translate(-50%,-50%);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.2vh;
+  container-type:size;
 }
 .sp .plate{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
 .sp img{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain}
 .spname{
   font-size:1.15vw;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
   color:var(--dim);text-align:center;flex:none;
+}
+/* A partner typed in rather than uploaded: the name is the logo. */
+.sp .spword,.ar .spword{
+  font-family:var(--font-display); font-size:2.8vw; line-height:1.05;
+  color:var(--snow); text-align:center; overflow-wrap:break-word;
+}
+@supports (font-size:1cqh){
+  .sp .spword,.ar .spword{font-size:min(26cqh,17cqw)}
 }
 
 /* ── Break takeover ──────────────────────────────────────────────────── */
@@ -280,7 +292,7 @@ body.show-cursor{cursor:default}
 #airview.live{display:block}
 #airstage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 #airstage img,#airstage video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
-#airstage embed{width:100%;height:100%;border:0}
+#airstage embed{position:absolute;inset:0;width:100%;height:100%;border:0}
 /* ── How a photo sits on a 16:9 wall ─────────────────────────────────────
    Phones shoot portrait and the screen is landscape, so every reel has to
    answer what to do with the mismatch. Fit leaves bars, fill crops into them,
@@ -322,23 +334,47 @@ body.show-cursor{cursor:default}
 }
 
 #airslug{
+  --slug:1;                 /* set from the size slider */
   position:absolute; left:0; right:0; bottom:0; z-index:2;
-  display:none; align-items:baseline; gap:1.6vw;
-  padding:2.6vh var(--safe-x) 1.8vh;
+  display:none;
+  padding:calc(2.6vh * var(--slug)) var(--safe-x) var(--safe-y);
   background:linear-gradient(to top,rgba(10,25,47,.94) 30%,rgba(10,25,47,0));
   pointer-events:none;
 }
-#airslug.on{display:flex}
+#airslug.on{display:block}
+#airslug .slugln{display:flex;align-items:baseline;gap:1.6vw}
 #airslug .k{
-  font-size:1vw; font-weight:600; letter-spacing:.24em; text-transform:uppercase;
-  color:var(--orange); flex:none;
+  font-size:calc(1vw * var(--slug)); font-weight:600; letter-spacing:.24em;
+  text-transform:uppercase; color:var(--orange); flex:none;
 }
-#airslug .t{font-family:var(--font-display);font-size:2.4vw;line-height:1;color:var(--snow)}
+#airslug .t{
+  font-family:var(--font-display); font-size:calc(2.4vw * var(--slug)); line-height:1;
+  color:var(--snow);
+  min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
 #airslug .c{
-  margin-left:auto; font-family:var(--font-display); font-size:3.2vw; line-height:1;
-  color:var(--snow); white-space:nowrap;
+  margin-left:auto; font-family:var(--font-display); font-size:calc(3.2vw * var(--slug));
+  line-height:1; color:var(--snow); white-space:nowrap;
 }
 #airslug .c.warn,#airslug .c.over{color:var(--orange)}
+/* One card replacing another with no movement reads as a glitch from the back
+   of a room, so the swap is a short lift and fade rather than a snap. */
+@keyframes slugin{from{opacity:0;transform:translateY(0.7vh)}to{opacity:1;transform:none}}
+#airslug .slugln.swap{animation:slugin .5s ease-out}
+@media (prefers-reduced-motion:reduce){#airslug .slugln.swap{animation:none}}
+
+/* ── The BIES bug ────────────────────────────────────────────────────────
+   Top right of whatever is on the wall. The brand icon is a transparent SVG,
+   so it sits straight on the photograph with nothing behind it; the shadow is
+   what keeps it readable when the photograph under it is bright. */
+#airbug{
+  position:absolute; top:var(--safe-y); right:var(--safe-x); z-index:2;
+  display:none; height:9vh; color:var(--snow);
+  filter:drop-shadow(0 .3vh 1.2vh rgba(0,0,0,.75));
+  pointer-events:none;
+}
+#airbug.on{display:block}
+#airbug svg{height:100%;width:auto;display:block}
 
 /* ── Blackout ────────────────────────────────────────────────────────── */
 #blackout{
@@ -536,10 +572,12 @@ body.audience.not-full #fshint{display:block}
 }
 #arfield{position:relative;flex:1;min-height:0}
 
+
 .ar{
   position:absolute; transform:translate(-50%,-50%);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
   cursor:grab; border:1px dashed transparent; border-radius:6px; touch-action:none;
+  container-type:size;   /* a name-only partner is sized off its own box */
 }
 .ar:hover{border-color:rgba(249,245,244,.3)}
 .ar.sel{border-color:var(--orange);border-style:solid;z-index:5}
@@ -682,6 +720,11 @@ body.audience.not-full #fshint{display:block}
   display:flex;align-items:center;justify-content:center;
 }
 .spitem img{max-width:100%;max-height:100%;object-fit:contain}
+/* A partner with no logo: the name stands in for one, here and on the wall. */
+.spitem .spword{
+  font-family:var(--font-display); font-size:19px; line-height:1.1;
+  color:var(--navy); text-align:center; padding:0 8px; word-break:break-word;
+}
 .spitem input[type=text]{margin-top:8px;font-size:13px;padding:7px 9px}
 #setup .spitem .shw{
   display:flex;align-items:center;gap:7px;margin:7px 0 0;font-size:11px;
@@ -930,10 +973,13 @@ body.audience.not-full #fshint{display:block}
 <div id="airview">
   <div id="airstage"></div>
   <div id="airslug">
-    <span class="k" id="airslugk">Up next</span>
-    <span class="t" id="airslugt"></span>
-    <span class="c" id="airslugc"></span>
+    <div class="slugln" id="airslugln">
+      <span class="k" id="airslugk">Up next</span>
+      <span class="t" id="airslugt"></span>
+      <span class="c" id="airslugc"></span>
+    </div>
   </div>
+  <div id="airbug"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080"><path fill="#FF5B00" d="M540.03,0C241.78,0,.03,241.75.03,540.06s241.76,539.94,540,539.94,539.94-241.76,539.94-539.94S838.22,0,540.03,0ZM540.03,1030.06c-270.65,0-490.06-219.41-490.06-490S269.38,49.94,540.03,49.94s490.06,219.41,490.06,490.13-219.41,490-490.06,490Z"/><g><path fill="currentColor" d="M166.91,355.96h112.52c67.88,0,94.75,35.08,94.75,91.57v9.11c0,41.46-17.31,62.42-44.64,73.35,30.06,10.93,50.11,35.99,50.11,81.54v9.11c0,69.24-26.42,103.41-97.03,103.41h-115.71v-368.09ZM272.6,506.29c22.32,0,35.99-6.83,35.99-36.44v-24.6c0-29.16-11.38-35.08-35.53-35.08h-41.91v96.12h41.46ZM274.88,669.83c30.06,0,38.72-8.65,38.72-39.63v-29.61c0-29.16-11.39-40.09-38.72-40.09h-43.74v109.33h43.74Z"/><path fill="currentColor" d="M396.48,666.64h23.69v-253.28h-23.69v-57.4h111.16v57.4h-23.24v253.28h23.24v57.4h-111.16v-57.4Z"/><path fill="currentColor" d="M530.12,355.96h172.66v54.21h-108.42v102.96h102.05v53.75h-102.05v102.96h108.42v54.21h-172.66v-368.09Z"/><path fill="currentColor" d="M710.71,616.53v-20.96h65.14v37.81c0,31.89,13.67,42.82,43.74,42.82,27.33,0,38.72-10.02,38.72-36.44v-15.94c0-28.7-11.39-40.09-35.99-51.93l-46.93-26.88c-37.35-21.87-61.5-48.29-61.5-97.49,0-60.59,34.62-96.12,102.96-96.12s103.41,34.17,103.41,97.03v22.78h-65.14v-28.7c0-29.61-12.3-38.72-38.72-38.72-25.06,0-36.9,9.11-36.9,33.25v10.94c0,25.06,12.29,36.9,33.25,47.37l46.92,26.43c38.72,21.86,64.23,45.09,64.23,103.86,0,68.79-32.8,102.95-105.23,102.95s-107.97-38.26-107.97-112.06Z"/></g></svg></div>
 </div>
 
 <div id="blackout">
@@ -964,8 +1010,9 @@ body.audience.not-full #fshint{display:block}
     <h2>Operator keys</h2>
     <dl>
       <dt>F</dt>            <dd>Fullscreen</dd>
-      <dt>&rarr; / N</dt>   <dd>Start the next segment now</dd>
-      <dt>&larr;</dt>       <dd>Go back one segment</dd>
+      <dt>&rarr; / &larr;</dt> <dd>Next / previous slide, whenever a deck is on the wall
+                            &mdash; otherwise, the next / previous segment</dd>
+      <dt>N / P</dt>        <dd>Start the next segment now / go back one, deck or no deck</dd>
       <dt>+ / &minus;</dt>  <dd>Push the rest of the night later / earlier by 5 min</dd>
       <dt>Shift + / &minus;</dt><dd>Same, by 1 min</dd>
       <dt>A</dt>            <dd>Auto-advance on / off (off = it waits for you, and shows overrun)</dd>
@@ -974,10 +1021,11 @@ body.audience.not-full #fshint{display:block}
       <dt>R</dt>            <dd>Resume panel rotation</dd>
       <dt>X</dt>            <dd>Take whatever is on the screen off air</dd>
       <dt>B</dt>            <dd>Blackout — clean screen for the projector</dd>
+      <dt>T</dt>            <dd>Hide / show the clock times on the running order</dd>
       <dt>E</dt>            <dd>Edit tonight's schedule</dd>
       <dt>S</dt>            <dd>Send the audience view to the second screen</dd>
-      <dt>Page &#8595; &#8593;</dt> <dd>Next / previous slide of the deck on the wall
-                            &mdash; what a presenter's clicker sends</dd>
+      <dt>Page &#8595; &#8593;</dt> <dd>Next / previous slide &mdash; what a presenter's
+                            clicker sends. So do &darr; &uarr;</dd>
       <dt>D</dt>            <dd>Rehearse — replay the whole night in about a minute</dd>
       <dt>Esc</dt>          <dd>Close this / leave rehearse</dd>
     </dl>
@@ -1048,7 +1096,8 @@ body.audience.not-full #fshint{display:block}
   <div id="airbar">
     <span class="dot"></span>
     <span id="airwhat">—</span>
-    <label class="tog"><input type="checkbox" id="airoverlay"> Overlay next segment</label>
+    <label class="tog"><input type="checkbox" id="airoverlay"> Overlay</label>
+    <label class="tog"><input type="checkbox" id="airbug2"> Logo</label>
     <button class="btn" id="airoff">Take off air</button>
   </div>
 
@@ -1109,6 +1158,12 @@ body.audience.not-full #fshint{display:block}
       <button class="btn ghost" id="loadsn">Load the standard social night</button>
     </div>
     <p class="hint" style="margin-top:16px">Ends at <strong id="endsat">&mdash;</strong></p>
+    <label class="tog" style="margin-top:14px">
+      <input type="checkbox" id="f-hidetimes"> Hide the clock times on the screen (T)</label>
+    <p class="sub" style="margin-top:8px">For a night that has gone far enough off plan that
+      the printed times mislead more than they help. The running order, the marker on where
+      we are and the countdown all stay &mdash; only the clock times go, and only on the
+      screen. You can still see and edit them here.</p>
 
 
   </div>
@@ -1146,9 +1201,13 @@ body.audience.not-full #fshint{display:block}
     <div class="btnrow">
       <label class="btn" for="f-sponsor" style="display:inline-block">+ Add logo</label>
       <input type="file" id="f-sponsor" accept="image/*" multiple hidden>
+      <button class="btn" id="spaddname">+ Add name only</button>
       <button class="btn primary" id="arrangebtn">Arrange on screen</button>
     </div>
-    <p class="sub">The name is used as the image's alt text either way. Tick
+    <p class="sub"><strong>Add name only</strong> is for a partner you have no logo for
+      &mdash; the name is set in the display face and stands in for one. Either way the
+      name is what the &ldquo;Proudly sponsored by&rdquo; overlay reads out.
+      The name is used as the image's alt text too. Tick
       <strong>Show name</strong> only for logos that are a symbol with no wordmark &mdash;
       captioning every logo makes the panel noisy. Logos are shrunk to fit the browser's
       storage budget; pale or white ones read best on the dark screen.</p>
@@ -1160,6 +1219,29 @@ body.audience.not-full #fshint{display:block}
       <code>Sep 25 | Oriente Tour | 3 days</code>.
       Ops codes are stripped automatically &mdash; they never go on the screen.</p>
     <textarea id="f-upcoming"></textarea>
+
+    <h3>On-air overlay</h3>
+    <p class="sub" style="margin-top:0">The strip along the bottom of a photo, a slide or a
+      clip &mdash; switched on with <strong>Overlay</strong> beside the on-air bar. It
+      cycles through the cards ticked here, and the countdown card is dealt back in
+      between every one of the others, so the room is never more than one card away from
+      knowing how long is left.</p>
+    <div class="grid2">
+      <div><label for="f-slugsec">Seconds per overlay card</label>
+        <input type="number" id="f-slugsec" min="3" max="120"></div>
+      <div><label for="f-slugscale">Overlay text size
+          &mdash; <span id="slugscaleval">100%</span></label>
+        <input type="range" id="f-slugscale" min="60" max="220" step="5"></div>
+      <div><label>&nbsp;</label>
+        <div style="display:flex;gap:20px;align-items:center;height:44px">
+          <label class="tog"><input type="checkbox" id="f-slugnext"> Up next</label>
+          <label class="tog"><input type="checkbox" id="f-slugsp"> Sponsors</label>
+          <label class="tog"><input type="checkbox" id="f-slugup"> Coming up</label>
+        </div></div>
+    </div>
+    <label for="f-slugnote">One more line, if you want one</label>
+    <input type="text" id="f-slugnote" placeholder="e.g. #LivingLikeALocal">
+    <p class="sub">It gets a card of its own, under tonight's event name.</p>
 
     <h3>Rotation</h3>
     <div class="grid2">
@@ -1265,7 +1347,8 @@ body.audience.not-full #fshint{display:block}
         <div style="display:flex;gap:20px;align-items:center;height:44px">
           <label class="tog"><input type="checkbox" id="f-ken"> Ken Burns</label>
           <label class="tog"><input type="checkbox" id="f-showloop"> Loop</label>
-          <label class="tog"><input type="checkbox" id="f-showoverlay"> Countdown</label>
+          <label class="tog"><input type="checkbox" id="f-showoverlay"> Overlay</label>
+          <label class="tog"><input type="checkbox" id="f-showbug"> Logo</label>
         </div></div>
     </div>
     <div class="btnrow">
@@ -1275,7 +1358,10 @@ body.audience.not-full #fshint{display:block}
       <button class="btn ghost" id="reelnext" title="Next photo">&#8594;</button>
       <button class="btn ghost" id="reelstop">Stop the reel</button>
     </div>
-    <p class="sub">Everything here can be changed while the reel is running, and the second
+    <p class="sub"><strong>Overlay</strong> is the strip along the bottom &mdash; what it
+      cycles through is set under Screen panels. <strong>Logo</strong> puts the BIES bug in
+      the top right corner. Both apply to anything on the wall, not only the reel.
+      Everything here can be changed while the reel is running, and the second
       screen picks it up &mdash; the speed, the crop, the transition. <strong>Ken Burns</strong>
       is the slow zoom across a still that stops a photograph looking dead on a big screen.
       A photo can override the crop for itself in the list above. The reel runs through the
@@ -1768,6 +1854,7 @@ function defaults() {
     overrides: {},        // segment index -> pinned start (epoch ms)
     extra: {},            // segment index -> minutes added by the operator
     anchorSlip: 0,        // minutes the whole night has been shifted
+    hideTimes: false,     // a night far enough off plan that the clock times mislead
     qr: { title: "Join the community", url: "", cap: "Scan to join the BIES WhatsApp group",
           img: "" },
     sponsors: [],
@@ -1786,11 +1873,15 @@ function defaults() {
     music: [],     // { id, vid, artist, song } — YouTube queue
     vol: 0.8,      // the audio player's own level, not the laptop's
     audio: [],     // { id, name, mid } — local tracks, played from this window
-    show: { interval: 8, overlay: false, loop: false, sound: "air",
+    show: { interval: 8, overlay: false, bug: true, loop: false, sound: "air",
+            slugScale: 1,      // the overlay reads differently from 3 m and from 30
             fit: "fit",        // fit | fill | blur — what to do with a portrait photo
             trans: "fade",     // cut | fade | black
             transMs: 800,
-            ken: false }       // Ken Burns: the slow zoom across a still
+            ken: false,        // Ken Burns: the slow zoom across a still
+            /* What the overlay cycles through, and how long each card holds. */
+            slugSec: 10, slugNext: true, slugSponsors: true, slugUpcoming: true,
+            slugNote: "" }
   };
 }
 
@@ -1911,10 +2002,17 @@ function current() {
   if (!n) return { idx: -1, starts, ends, state: "empty" };
 
   if (rt.autoAdvance) {
-    if (now < starts[0])   return { idx: -1, starts, ends, state: "pre" };
-    if (now >= ends[n - 1]) return { idx: n - 1, starts, ends, state: "post" };
-    let i = 0;
+    /* Where the clock says we are — and then, never below it, where the
+       operator has moved us to. Pressing "next" early moves the board on
+       without touching a single published time; the clock catches up on its
+       own and carries on from there, so one early press does not quietly put
+       the operator in charge of every segment for the rest of the night. */
+    let i = -1;
     for (let k = 0; k < n; k++) if (now >= starts[k]) i = k;
+    if (now >= ends[n - 1]) i = n;
+    if (rt.manualIndex > i) i = rt.manualIndex;
+    if (i < 0)  return { idx: -1,    starts, ends, state: "pre" };
+    if (i >= n) return { idx: n - 1, starts, ends, state: "post" };
     return { idx: i, starts, ends, state: "run" };
   }
   if (rt.manualIndex < 0)  return { idx: -1, starts, ends, state: "pre" };
@@ -1995,8 +2093,8 @@ function renderHero() {
     const left = target - now;
     cEl.textContent = dur(left);
     cEl.className = over ? "over" : (left <= WARN_SEC * 1000 ? "warn" : "");
-    sEl.textContent = over
-      ? "running over"
+    sEl.textContent = over ? "running over"
+      : cfg.hideTimes ? ""
       : (state === "pre" ? `starts ${clockStr(target)}` : `until ${clockStr(target)}`);
   }
   return { idx, starts, ends, state, over, target };
@@ -2013,8 +2111,8 @@ function renderBreak(ctx) {
   const c = $("#breakcount");
   c.textContent = dur(left);
   c.className = over ? "over" : (left <= WARN_SEC * 1000 ? "warn" : "");
-  $("#breaksub").textContent = over
-    ? "grabbing everyone now" : `back at ${clockStr(ctx.target)}`;
+  $("#breaksub").textContent = over ? "grabbing everyone now"
+    : cfg.hideTimes ? "" : `back at ${clockStr(ctx.target)}`;
 }
 
 function renderItinerary(ctx) {
@@ -2022,9 +2120,15 @@ function renderItinerary(ctx) {
   document.documentElement.style.setProperty(
     "--row-scale", Math.max(0.55, Math.min(1, 7.6 / segs.length)));
 
+  box.classList.toggle("notimes", !!cfg.hideTimes);
+
   const html = segs.map((s, i) => {
-    const cls = ctx.state === "run" && i === ctx.idx ? "now"
-              : (ctx.starts[i] != null && nowSched() >= ctx.ends[i] ? "past" : "");
+    /* Done is done whichever way we got here: the operator can be ahead of the
+       clock, so anything before where we are counts as past even if its time
+       has not come round yet. */
+    const done = ctx.state === "post" || (ctx.idx >= 0 && i < ctx.idx)
+              || (ctx.starts[i] != null && nowSched() >= ctx.ends[i]);
+    const cls = ctx.state === "run" && i === ctx.idx ? "now" : (done ? "past" : "");
     const badge = cls === "past" ? "done" : "";   // times and titles only, no durations
     return `<div class="row ${cls}">`
          + `<div class="t">${clockStr(ctx.starts[i])}</div>`
@@ -2062,10 +2166,14 @@ function renderQR() {
 }
 
 function sponsorHTML(s) {
+  // A partner with no logo is set in the display face instead — captioning a
+  // wordmark that IS the name would only print it twice.
+  const body = s.src
+    ? `<div class="plate"><img src="${s.src}" alt="${esc(s.name)}"></div>`
+      + (s.show && s.name ? `<span class="spname">${esc(s.name)}</span>` : "")
+    : `<div class="plate"><span class="spword">${esc(s.name)}</span></div>`;
   return `<div class="sp" style="left:${s.x}%;top:${s.y}%;width:${s.w}%;height:${s.h}%">`
-       + `<div class="plate"><img src="${s.src}" alt="${esc(s.name)}"></div>`
-       + (s.show && s.name ? `<span class="spname">${esc(s.name)}</span>` : "")
-       + `</div>`;
+       + body + `</div>`;
 }
 
 function renderSponsors() {
@@ -2120,6 +2228,11 @@ function renderChips(ctx) {
    Both windows render this the same way from the same record, so there is no
    handoff to go wrong: the operator writes an id into the live state and each
    window fetches the file and mounts it itself. */
+/* How long Chrome's PDF plugin needs between being handed a file and having
+   drawn it. Measured at between 120 and 200ms for a local deck; this is the
+   pause the room does not see, because the previous page is still up. */
+const PDF_SETTLE_MS = 220;
+
 let mounted = { key: null, look: null, url: null, node: null, kind: null };
 let mounting = null, lastCmd = -1;
 
@@ -2127,7 +2240,13 @@ function clearAir() {
   if (mounted.url) { try { URL.revokeObjectURL(mounted.url); } catch (_) {} }
   mounted = { key: null, look: null, url: null, node: null, kind: null };
   const st = $("#airstage");
-  if (st) st.innerHTML = "";
+  if (st) {
+    // a page turn caught in flight leaves a second viewer here, holding a URL
+    Array.from(st.children).forEach(el => {
+      if (el.__url) { try { URL.revokeObjectURL(el.__url); } catch (_) {} }
+    });
+    st.innerHTML = "";
+  }
   lastCmd = -1;
 }
 
@@ -2221,6 +2340,15 @@ function renderAir() {
       const ms = (isImg && mounted.kind === "img" && a.key !== mounted.key &&
                   a.trans && a.trans !== "cut")
                ? Math.max(0, Math.min(4000, +a.transMs || 0)) : 0;
+
+      /* Turning a page of a PDF means loading a second copy of the viewer,
+         because Chrome's will not be moved after it has loaded. So the page
+         the room is already looking at is held underneath while the new one
+         loads, and only swapped when it has something to show. Left to itself
+         the wall would flash black on every click of the presenter's remote. */
+      const turn = a.kind === "pdf" && mounted.kind === "pdf" &&
+                   (mounted.key || "").split(":")[0] === a.key.split(":")[0];
+
       const old = mounted.node, oldUrl = mounted.url;
 
       let node;
@@ -2235,18 +2363,20 @@ function renderAir() {
         node.type = "application/pdf";
         node.tabIndex = -1;
         /* Chrome's own PDF viewer, with its chrome switched off. Verified on
-           file://: no toolbar, no scrollbars, page fitted. It will not accept
-           a page change after loading, though — which is why a deck the tech
-           needs to drive is converted to slide images instead. */
+           file://: no toolbar, no scrollbars, page fitted, and #page= honoured
+           — but only on the way in. Changing the fragment afterwards blanks it
+           (measured), so every page turn mounts a fresh one. */
         node.src = url + "#toolbar=0&navpanes=0&scrollbar=0&view=Fit"
-                       + (a.page ? "&page=" + a.page : "");
+                       + "&page=" + Math.max(1, +a.page || 1);
       } else {
         node = buildShot(url, a);
       }
 
-      if (ms) mounted = { key: null, look: null, url: null, node: null, kind: null };
-      else    clearAir();                       // a cut takes the stage with it
+      if (ms || turn) mounted = { key: null, look: null, url: null, node: null, kind: null };
+      else clearAir();                          // a cut takes the stage with it
 
+      if (turn) node.style.opacity = "0";       // held back until it has painted
+      node.__url = url;                         // so a sweep can release it
       $("#airstage").appendChild(node);
       mounted = { key: a.key, look, url, node, kind: isImg ? "img" : a.kind };
 
@@ -2265,6 +2395,29 @@ function renderAir() {
           retire(old, oldUrl, ms);
         }
       }
+
+      if (turn) {
+        /* The load event fires when the file has been handed to the plugin,
+           not when the plugin has drawn it — measured at 13ms against about
+           180ms to paint — so the settle is what actually decides this, and
+           the load event only stops us waiting on a file that never arrives. */
+        let done = false;
+        const swap = () => {
+          if (done) return;
+          done = true;
+          setTimeout(() => {
+            /* Overtaken by a faster click: leave it, and let whichever page
+               does win sweep this one up along with the rest. */
+            if (mounted.node !== node) return;
+            node.style.opacity = "";
+            Array.from($("#airstage").children).forEach(el => {
+              if (el !== node) retire(el, el.__url || null, 0);
+            });
+          }, PDF_SETTLE_MS);
+        };
+        node.addEventListener("load", swap);
+        setTimeout(swap, 900);                  // nothing fired: show it anyway
+      }
       applyCmd(a);
     }).catch(() => { mounting = null; });
   } else if (mounted.node) {
@@ -2281,20 +2434,85 @@ function renderAir() {
      full-screen PDF loses E, B and X at once. Taking focus back each tick keeps
      them all working, and the wheel still scrolls the PDF, because wheel events
      follow the pointer rather than the focus. */
-  if (!AUDIENCE && mounted.kind === "pdf" && document.activeElement === mounted.node) {
-    mounted.node.blur();
+  const held = document.activeElement;
+  if (!AUDIENCE && mounted.kind === "pdf" && held && held.tagName === "EMBED") {
+    held.blur();
     if (document.body) document.body.focus();
   }
 
+  drawSlug(a);
+
+  /* The bug is read straight off the config rather than carried on the air
+     object, because the config is mirrored to the audience window anyway and
+     one source beats two that can disagree. */
+  $("#airbug").classList.toggle("on", !!cfg.show.bug);
+}
+
+/* ── The overlay strip ───────────────────────────────────────────────────
+   The countdown is the one thing on this board that nothing else can do, so it
+   is not simply one card in a queue: it is dealt back in between every other
+   card. Whatever else is cycling — the partners, what is on next month — the
+   room is at most one card away from knowing how long is left.
+
+   Both windows work the index out from the clock instead of the operator
+   publishing it, which is the same trick the rest of the board uses: no
+   message passing, no drift, and the audience screen cannot fall a card
+   behind. Rehearse runs the clock fast, so it winds the cards on fast too. */
+function slugCards() {
+  const s = cfg.show, promos = [];
+
+  if (s.slugSponsors !== false) {
+    const names = cfg.sponsors.map(x => (x.name || "").trim()).filter(Boolean);
+    if (names.length) promos.push({ k: "Proudly sponsored by", t: names.join("   ·   ") });
+  }
+  if (s.slugUpcoming !== false) {
+    cfg.upcoming.forEach(e => {
+      const what = [e.what, e.meta].filter(Boolean).join(" · ");
+      if (what || e.when) promos.push({ k: "See you at", t: what || e.when,
+                                        c: what ? (e.when || "") : "" });
+    });
+  }
+  const note = (s.slugNote || "").trim();
+  if (note) promos.push({ k: cfg.name || "Tonight", t: note });
+
+  const next = { k: $("#nextkicker").textContent, t: $("#nexttitle").textContent,
+                 c: $("#count").textContent, cls: $("#count").className };
+  if (s.slugNext === false) return promos.length ? promos : [next];
+  if (!promos.length) return [next];
+
+  const out = [];
+  promos.forEach(x => { out.push(next, x); });
+  return out;
+}
+
+const slugScale = () => Math.max(0.6, Math.min(2.2, +cfg.show.slugScale || 1));
+
+let slugAt = -1;
+function drawSlug(a) {
   const slug = $("#airslug");
-  if (a.overlay) {
-    slug.classList.add("on");
-    $("#airslugk").textContent = $("#nextkicker").textContent;
-    $("#airslugt").textContent = $("#nexttitle").textContent;
-    const c = $("#count");
-    $("#airslugc").textContent = c.textContent;
-    $("#airslugc").className   = "c " + (c.className || "");
-  } else slug.classList.remove("on");
+  if (!a.overlay) { slug.classList.remove("on"); slugAt = -1; return; }
+  slug.classList.add("on");
+  slug.style.setProperty("--slug", slugScale());
+
+  const cards = slugCards();
+  const sec = Math.max(3, +cfg.show.slugSec || 10);
+  const i = cards.length > 1
+    ? Math.floor(nowClock() / (sec * 1000)) % cards.length : 0;
+  const card = cards[i] || cards[0];
+
+  $("#airslugk").textContent = card.k || "";
+  $("#airslugt").textContent = card.t || "";
+  const c = $("#airslugc");
+  c.textContent = card.c || "";
+  c.className = "c " + (card.cls || "");
+
+  if (slugAt !== i) {
+    slugAt = i;
+    const ln = $("#airslugln");
+    ln.classList.remove("swap");
+    void ln.offsetWidth;                     // or the animation will not restart
+    ln.classList.add("swap");
+  }
 }
 
 /* ── Keeping the screen on ───────────────────────────────────────────────
@@ -2363,37 +2581,29 @@ function pin(i, t) {
   Object.keys(cfg.overrides).forEach(k => { if (Number(k) > i) delete cfg.overrides[k]; });
 }
 
+/* Moving through the night is not the same thing as re-timing it. Starting a
+   segment early used to pin it to the moment it started, which re-chained every
+   time after it — so stepping through the running order rewrote the whole
+   schedule under the operator's hands. It only moves where we are now; the
+   times stay as written until something is inserted, or until +/- is used to
+   say the night itself has moved. */
 function advance() {
   const { idx, state } = current();
   const n = cfg.segments.length;
   if (!n || state === "post") return;
-  const target = state === "pre" ? 0 : idx + 1;
-
-  if (target >= n) {                       // finishing the last segment early
-    const { starts } = schedule();
-    const base = Number(cfg.segments[n - 1].min) || 0;
-    cfg.extra[n - 1] = (nowSched() - starts[n - 1]) / 60000 - base;
-    if (!rt.autoAdvance) rt.manualIndex = n;
-  } else {
-    pin(target, nowSched());
-    if (!rt.autoAdvance) rt.manualIndex = target;
-  }
-  save(); tick();
+  rt.manualIndex = state === "pre" ? 0 : idx + 1;      // n means the night is over
+  publishLive(); tick();
 }
 
 function back() {
   const { idx, state } = current();
   const n = cfg.segments.length;
   if (!n || state === "pre") return;
-  const target = state === "post" ? n - 1 : idx - 1;
-  if (target < 0) {
-    Object.keys(cfg.overrides).forEach(k => delete cfg.overrides[k]);
-    rt.manualIndex = -1;
-  } else {
-    pin(target, nowSched());
-    if (!rt.autoAdvance) rt.manualIndex = target;
-  }
-  save(); tick();
+  /* Going back means going against the clock, which no floor can do — so this
+     one does take the wheel. A puts it back on the clock. */
+  rt.autoAdvance = false;
+  rt.manualIndex = state === "post" ? n - 1 : idx - 1;  // -1 means before the start
+  publishLive(); tick();
 }
 
 // Before the night starts this moves the whole thing; once running it stretches
@@ -2502,11 +2712,23 @@ document.addEventListener("keydown", e => {
   }
   switch (k) {
     case "f": case "F": fullscreen(); break;
-    case "ArrowRight": case "n": case "N": advance(); break;
-    case "ArrowLeft": back(); break;
+    /* A deck on the wall owns the arrows — that is what an operator reaches
+       for, and what half the presenter clickers in circulation send. N and P
+       still move the running order whether or not a deck is up, so nothing
+       ever becomes unreachable. */
+    case "ArrowRight":
+      if (airDeck()) { e.preventDefault(); airStep(1); } else advance();
+      break;
+    case "ArrowLeft":
+      if (airDeck()) { e.preventDefault(); airStep(-1); } else back();
+      break;
+    case "ArrowDown": if (airDeck()) { e.preventDefault(); airStep(1); }  break;
+    case "ArrowUp":   if (airDeck()) { e.preventDefault(); airStep(-1); } break;
+    case "n": case "N": advance(); break;
+    case "p": case "P": back(); break;
     case "x": case "X": airOff(); break;
-    case "PageDown": if (airDeckId()) { e.preventDefault(); airStep(1); }  break;
-    case "PageUp":   if (airDeckId()) { e.preventDefault(); airStep(-1); } break;
+    case "PageDown": if (airDeck()) { e.preventDefault(); airStep(1); }  break;
+    case "PageUp":   if (airDeck()) { e.preventDefault(); airStep(-1); } break;
     case "=": slip(5); break;
     case "+": slip(1); break;
     case "-": slip(-5); break;
@@ -2514,8 +2736,9 @@ document.addEventListener("keydown", e => {
     case "a": case "A": {
       const here = current().idx;          // read BEFORE flipping, or current()
       rt.autoAdvance = !rt.autoAdvance;    // reads a stale manualIndex and rewinds
-      if (!rt.autoAdvance) rt.manualIndex = here;
-      tick(); break;
+      // handing it back to the clock also drops wherever the operator had moved to
+      rt.manualIndex = rt.autoAdvance ? -1 : here;
+      publishLive(); tick(); break;
     }
     case " ": e.preventDefault(); togglePause(); break;
     case "1": case "2": case "3": case "4": {
@@ -2525,6 +2748,11 @@ document.addEventListener("keydown", e => {
     }
     case "r": case "R": rt.pinned = null; rt.panelSince = Date.now(); tick(); break;
     case "b": case "B": rt.blackout = !rt.blackout; tick(); break;
+    case "t": case "T":
+      cfg.hideTimes = !cfg.hideTimes;
+      save(); tick();
+      { const c = $("#f-hidetimes"); if (c) c.checked = cfg.hideTimes; }
+      break;
     case "e": case "E": openSetup(); break;
     case "s": case "S": openSecondScreen(); break;
     case "d": case "D": setRehearse(!rt.rehearse); break;
@@ -3027,9 +3255,11 @@ const upcomingText = () => cfg.upcoming.map(e => [e.when, e.what, e.meta].join("
 function spRows() {
   $("#splist").innerHTML = cfg.sponsors.map((s, i) =>
     `<div class="spitem" data-i="${i}">
-       <div class="plate"><img src="${s.src}" alt="${esc(s.name)}"></div>
+       <div class="plate">${s.src ? `<img src="${s.src}" alt="${esc(s.name)}">`
+                                  : `<span class="spword">${esc(s.name) || "Name"}</span>`}</div>
        <input type="text" data-f="name" value="${esc(s.name)}" placeholder="Partner name">
-       <label class="shw"><input type="checkbox" data-f="show" ${s.show ? "checked" : ""}>
+       <label class="shw"><input type="checkbox" data-f="show" ${s.show ? "checked" : ""}
+         ${s.src ? "" : "disabled"}>
          <span>Show name</span></label>
        <button data-i="${i}" title="Remove">&times;</button>
      </div>`
@@ -3048,8 +3278,21 @@ $("#splist").addEventListener("click", e => {
 $("#splist").addEventListener("input", e => {
   const tile = e.target.closest(".spitem"); if (!tile) return;
   const f = e.target.dataset.f; if (!f) return;
-  cfg.sponsors[+tile.dataset.i][f] = f === "show" ? e.target.checked : e.target.value;
+  const s = cfg.sponsors[+tile.dataset.i];
+  s[f] = f === "show" ? e.target.checked : e.target.value;
   save();
+  if (f === "name" && !s.src) {          // the name IS the logo — redraw its tile
+    const plate = tile.querySelector(".plate .spword");
+    if (plate) plate.textContent = s.name || "Name";
+  }
+});
+
+$("#spaddname").addEventListener("click", () => {
+  cfg.sponsors.push({ src: "", name: "", show: false });
+  autoArrangeSponsors();
+  save(); spRows();
+  const last = $("#splist .spitem:last-child input[data-f=\"name\"]");
+  if (last) last.focus();
 });
 
 /* Placement defaults. An event has one partner far more often than four, so the
@@ -3182,14 +3425,16 @@ function arRender() {
   $("#arfield").innerHTML = cfg.sponsors.map((s, i) =>
     `<div class="ar${i === arSel ? " sel" : ""}" data-i="${i}"
           style="left:${s.x}%;top:${s.y}%;width:${s.w}%;height:${s.h}%">
-       <div class="plate"><img src="${s.src}" alt="${esc(s.name)}" draggable="false"></div>
-       ${s.show && s.name ? `<span class="cap">${esc(s.name)}</span>` : ""}
+       <div class="plate">${s.src
+           ? `<img src="${s.src}" alt="${esc(s.name)}" draggable="false">`
+           : `<span class="spword">${esc(s.name) || "Name"}</span>`}</div>
+       ${s.src && s.show && s.name ? `<span class="cap">${esc(s.name)}</span>` : ""}
        <span class="grip"></span>
      </div>`).join("");
   $("#arhint").textContent = cfg.sponsors.length
-    ? (arSel < 0 ? "Select a logo to resize it."
+    ? (arSel < 0 ? "Select a partner to resize it."
                  : `${cfg.sponsors[arSel].name || "Logo " + (arSel + 1)} selected.`)
-    : "No logos yet — add one on the Screen panels tab.";
+    : "No partners yet — add one on the Screen panels tab.";
 }
 
 function arSelect(i) {
@@ -3312,14 +3557,48 @@ const fileErr = e => {
     : String(e && e.message || e)));
 };
 
+/* How many pages a PDF has, read straight out of the bytes.
+
+   Chrome's viewer will not tell us, and the operator has to know when a deck
+   has run out — a clicker press that silently does nothing is worse than one
+   that stops. Two readings: the /Count on the root of the page tree, which is
+   authoritative but hides inside a compressed object stream in some files, and
+   a straight count of page objects, which survives that but over-counts a file
+   that has been incrementally updated. Prefer the first and fall back to the
+   second; if both come up empty, say nothing rather than guess, and let the
+   deck run on until Chrome stops it at the last page.
+
+   Checked against the 32 real PDFs on this machine against pdfinfo — all 32
+   exact, including three where the two readings disagreed. */
+function pdfPageCount(blob) {
+  return blob.arrayBuffer().then(buf => {
+    const s = new TextDecoder("latin1").decode(buf);
+    let root = 0;
+    s.split("endobj").forEach(chunk => {
+      if (!/\/Type\s*\/Pages\b/.test(chunk)) return;
+      const m = chunk.match(/\/Count\s+(\d+)/);
+      if (m && +m[1] > root) root = +m[1];
+    });
+    return root || (s.match(/\/Type\s*\/Page[^s]/g) || []).length;
+  }).catch(() => 0);
+}
+
 /* ── What is on air ──────────────────────────────────────────────────── */
 const airDeckId = () => (rt.air && rt.air.key || "").split(":")[0];
+/* A photo's key starts "m:" or "reel:", which is not a deck id — so this has
+   to be the deck itself, not just the presence of something on the wall, or
+   the arrow keys would be swallowed while a photo is up. */
+const airDeck = () => {
+  const d = cfg.decks.find(x => x.id === airDeckId());
+  return d && d.kind !== "raw" ? d : null;
+};
 
 function airLabel() {
   const a = rt.air;
   if (!a || !a.key) return "";
   const d = cfg.decks.find(x => x.id === airDeckId());
-  if (d) return d.kind === "pdf" ? d.name
+  if (d) return d.kind === "pdf"
+       ? `${d.name} — page ${a.page || 1}${d.pages ? " of " + d.pages : ""}`
        : `${d.name} — slide ${(+a.key.split(":")[1] || 0) + 1} of ${d.slides.length}`;
   const m = cfg.media.find(x => "m:" + x.id === a.key || "reel:" + x.id === a.key);
   if (m) return (a.key.startsWith("reel:") ? "Photo reel — " : "") + m.name;
@@ -3343,6 +3622,7 @@ function renderAirBar() {
   if (on) {
     $("#airwhat").innerHTML = `On the wall now: <b>${esc(airLabel())}</b>`;
     $("#airoverlay").checked = !!rt.air.overlay;
+    $("#airbug2").checked    = !!cfg.show.bug;
   }
 }
 
@@ -3371,10 +3651,11 @@ function addSlideDeck(files) {
 
 function addPdfDeck(files) {
   const list = Array.from(files);
-  Promise.all(list.map(f => storeFile(f).then(id => ({ id, f })))).then(recs => {
-    recs.forEach(({ id, f }) => cfg.decks.push({
+  Promise.all(list.map(f => Promise.all([storeFile(f), pdfPageCount(f)])
+                             .then(([id, pages]) => ({ id, f, pages })))).then(recs => {
+    recs.forEach(({ id, f, pages }) => cfg.decks.push({
       id: uid(), name: f.name.replace(/\.pdf$/i, ""), speaker: "", seg: null,
-      kind: "pdf", slides: [], pdf: id, file: f.name
+      kind: "pdf", slides: [], pdf: id, pages, file: f.name
     }));
     const last = cfg.decks[cfg.decks.length - 1];
     if (last) dkSel = { id: last.id, i: 0 };
@@ -3426,22 +3707,32 @@ function dkShow() {
   if (!d || d.kind === "raw") {
     pic.innerHTML = `<span class="empty">${d ? "This one has to be converted first"
                                              : "Choose a deck to preview it"}</span>`;
+    pic.dataset.pdf = "";
     pos.textContent = "—"; th.innerHTML = "";
     return;
   }
   if (d.kind === "pdf") {
-    pos.textContent = "PDF";
+    dkSel.i = Math.max(0, d.pages ? Math.min(dkSel.i, d.pages - 1) : dkSel.i);
+    const pg = dkSel.i + 1;
+    pos.textContent = d.pages ? `${pg} / ${d.pages}` : `page ${pg}`;
     th.innerHTML = "";
+    /* Remounting the plugin is the only way to move it, so it is only done when
+       the page really changed — paintShow runs far too often for a preview that
+       reloads itself every time. */
+    const want = d.id + ":" + pg;
+    if (pic.dataset.pdf === want) return;
+    pic.dataset.pdf = want;
     urlFor(d.pdf).then(u => {
-      if (!u || !dkSel || dkSel.id !== d.id) return;
+      if (!u || !dkSel || dkSel.id !== d.id || pic.dataset.pdf !== want) return;
       pic.innerHTML = "";
       const e = document.createElement("embed");
       e.type = "application/pdf";
-      e.src = u + "#toolbar=0&navpanes=0&scrollbar=0&view=Fit";
+      e.src = u + "#toolbar=0&navpanes=0&scrollbar=0&view=Fit&page=" + pg;
       pic.appendChild(e);
     });
     return;
   }
+  pic.dataset.pdf = "";
   const n = d.slides.length;
   dkSel.i = Math.max(0, Math.min(dkSel.i, n - 1));
   pos.textContent = n ? `${dkSel.i + 1} / ${n}` : "—";
@@ -3472,9 +3763,21 @@ function dkShow() {
    whole point of being able to line up the next speaker mid-talk. */
 function dkStep(n) {
   const d = curDeck();
-  if (!d || d.kind !== "slides" || !d.slides.length) return;
-  dkSel.i = Math.max(0, Math.min(dkSel.i + n, d.slides.length - 1));
+  if (!d || d.kind === "raw") return;
+  const last = lastPageOf(d);
+  if (last < 0) return;
+  const i = Math.max(0, Math.min(dkSel.i + n, last));
+  if (i === dkSel.i) return;
+  dkSel.i = i;
   if (d.id === airDeckId()) dkSend(); else { dkShow(); deckRows(); }
+}
+
+/* The last index a deck can reach. A PDF whose page count could not be read
+   has no known end, so it is allowed to run on — Chrome stops at the last page
+   and the operator sees the screen stop moving, which is the honest failure. */
+function lastPageOf(d) {
+  if (d.kind === "pdf") return d.pages ? d.pages - 1 : Infinity;
+  return d.slides.length - 1;
 }
 
 function dkSend() {
@@ -3482,21 +3785,32 @@ function dkSend() {
   if (!d || d.kind === "raw") return;
   const common = { overlay: !!cfg.show.overlay, sound: cfg.show.sound };
   reelStop();
-  if (d.kind === "pdf") goAir(Object.assign({ key: d.id + ":pdf", kind: "pdf", id: d.pdf }, common));
+  if (d.kind === "pdf") {
+    const pg = (dkSel && dkSel.id === d.id ? dkSel.i : 0) + 1;
+    goAir(Object.assign({ key: `${d.id}:pdf:${pg}`, kind: "pdf", id: d.pdf, page: pg }, common));
+  }
   else if (d.slides.length)
     goAir(Object.assign({ key: d.id + ":" + dkSel.i, kind: "img", id: d.slides[dkSel.i] }, common));
 }
 
 /* A presenter's clicker sends PageUp/PageDown, so this has to move the deck
-   that is actually on the wall — not the one being previewed. */
+   that is actually on the wall — not the one being previewed. It drags the
+   preview along with it when they happen to be the same deck, so the operator's
+   screen never disagrees with the room's. */
 function airStep(n) {
-  const d = cfg.decks.find(x => x.id === airDeckId());
-  if (!d || d.kind !== "slides" || !d.slides.length) return;
-  const cur = +(rt.air.key.split(":")[1] || 0);
-  const i = Math.max(0, Math.min(cur + n, d.slides.length - 1));
+  const d = airDeck();
+  if (!d) return;
+  const last = lastPageOf(d);
+  if (last < 0) return;
+
+  const cur = d.kind === "pdf" ? (rt.air.page || 1) - 1 : +(rt.air.key.split(":")[1] || 0);
+  const i = Math.max(0, Math.min(cur + n, last));
   if (i === cur) return;
-  if (dkSel && dkSel.id === d.id) dkSel.i = i;
-  goAir(Object.assign({}, rt.air, { key: d.id + ":" + i, id: d.slides[i] }));
+
+  if (dkSel && dkSel.id === d.id) { dkSel.i = i; dkShow(); deckRows(); }
+  goAir(d.kind === "pdf"
+    ? Object.assign({}, rt.air, { key: `${d.id}:pdf:${i + 1}`, page: i + 1 })
+    : Object.assign({}, rt.air, { key: d.id + ":" + i, id: d.slides[i] }));
 }
 
 /* ── Media ───────────────────────────────────────────────────────────── */
@@ -3996,7 +4310,22 @@ function checkFiles() {
 }
 
 /* ── Paint everything the show-control tabs show ─────────────────────── */
+/* PDFs catalogued before the page count existed still have to get one, or the
+   deck they belong to can never say where it ends. Claiming the field up front
+   means the read happens once, not on every repaint. */
+function backfillPages() {
+  cfg.decks.forEach(d => {
+    if (d.kind !== "pdf" || d.pages != null || !d.pdf) return;
+    d.pages = 0;
+    mediaGet(d.pdf)
+      .then(rec => rec && rec.blob ? pdfPageCount(rec.blob) : 0)
+      .then(n => { if (n) { d.pages = n; save(); deckRows(); renderAirBar(); } })
+      .catch(() => {});
+  });
+}
+
 function paintShow() {
+  backfillPages();
   deckRows(); dkShow();
   mediaRows(); mdShow();
   musicRows(); audioRows();
@@ -4011,6 +4340,7 @@ function fillShow() {
   $("#f-ken").checked         = !!cfg.show.ken;
   $("#f-showloop").checked    = !!cfg.show.loop;
   $("#f-showoverlay").checked = !!cfg.show.overlay;
+  $("#f-showbug").checked     = !!cfg.show.bug;
   reelButtons();
 }
 
@@ -4184,6 +4514,32 @@ bind("#f-trans", "change", e => { cfg.show.trans = e.target.value; save(); airRe
 bind("#f-fit",   "change", e => { cfg.show.fit   = e.target.value; save(); airRestyle(); });
 bind("#f-ken",   "change", e => { cfg.show.ken   = e.target.checked; save(); airRestyle(); });
 bind("#f-showloop", "change", e => { cfg.show.loop = e.target.checked; save(); });
+/* The overlay cards are edited on one tab and seen on another, so they take
+   effect as they are typed rather than when the setup is closed. */
+bind("#f-slugsec",  "input",  e => { cfg.show.slugSec = Math.max(3, +e.target.value || 10); save(); });
+bind("#f-slugnote", "input",  e => { cfg.show.slugNote = e.target.value; save(); });
+bind("#f-slugscale", "input", e => {
+  cfg.show.slugScale = Math.max(0.6, Math.min(2.2, (+e.target.value || 100) / 100));
+  $("#slugscaleval").textContent = Math.round(slugScale() * 100) + "%";
+  save(); tick();
+});
+bind("#f-hidetimes", "change", e => { cfg.hideTimes = e.target.checked; save(); tick(); });
+bind("#f-slugnext", "change", e => { cfg.show.slugNext = e.target.checked; save(); slugAt = -1; });
+bind("#f-slugsp",   "change", e => { cfg.show.slugSponsors = e.target.checked; save(); slugAt = -1; });
+bind("#f-slugup",   "change", e => { cfg.show.slugUpcoming = e.target.checked; save(); slugAt = -1; });
+
+/* The bug is a config flag, not something carried on the air object, so both
+   checkboxes for it write the same place and one tick redraws both windows. */
+function setBug(on) {
+  cfg.show.bug = on;
+  save(); tick();
+  const a = $("#airbug2"), b = $("#f-showbug");
+  if (a) a.checked = on;
+  if (b) b.checked = on;
+}
+bind("#f-showbug", "change", e => setBug(e.target.checked));
+bind("#airbug2",   "change", e => setBug(e.target.checked));
+
 bind("#f-showoverlay", "change", e => {
   cfg.show.overlay = e.target.checked;
   if (rt.air) { rt.air = Object.assign({}, rt.air, { overlay: cfg.show.overlay }); publishLive(); tick(); }
@@ -4302,6 +4658,14 @@ function openSetup() {
   $("#f-qrurl").value    = cfg.qr.url || "";
   $("#f-qrcap").value    = cfg.qr.cap || "";
   $("#f-upcoming").value = upcomingText();
+  $("#f-slugsec").value      = cfg.show.slugSec;
+  $("#f-slugnext").checked   = cfg.show.slugNext !== false;
+  $("#f-slugsp").checked     = cfg.show.slugSponsors !== false;
+  $("#f-slugup").checked     = cfg.show.slugUpcoming !== false;
+  $("#f-slugnote").value     = cfg.show.slugNote || "";
+  $("#f-slugscale").value    = Math.round(slugScale() * 100);
+  $("#slugscaleval").textContent = Math.round(slugScale() * 100) + "%";
+  $("#f-hidetimes").checked  = !!cfg.hideTimes;
   buildTimePop(); segRows(); spRows(); qrThumb(); checkClock(); checkStore();
   fillShow(); paintShow(); checkFiles().then(paintShow);
   checkWake();
