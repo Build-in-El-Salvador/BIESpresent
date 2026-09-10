@@ -2474,9 +2474,14 @@ function renderAir() {
      to look. Left alone it swallows every key, and an operator facing a
      full-screen PDF loses E, B and X at once. Taking focus back each tick keeps
      them all working, and the wheel still scrolls the PDF, because wheel events
-     follow the pointer rather than the focus. */
+     follow the pointer rather than the focus.
+
+     Both windows do this, not just the operator's. Clicking the second screen
+     is how it ends up with the keyboard in the first place, and if its plugin
+     holds it, the clicker's presses never reach the handler that forwards them
+     — so the slides stop moving with nothing on either screen to say why. */
   const held = document.activeElement;
-  if (!AUDIENCE && mounted.kind === "pdf" && held && held.tagName === "EMBED") {
+  if (mounted.kind === "pdf" && held && held.tagName === "EMBED") {
     held.blur();
     if (document.body) document.body.focus();
   }
@@ -2590,6 +2595,8 @@ function tick() {
   ticking = true;
   try {
     if (AUDIENCE) pullLive();
+    // defined in a later block, so guarded for the first tick of a cold load
+    else if (typeof takeNudge === "function") takeNudge();
     renderHead();
     const ctx = renderHero();
     renderBreak(ctx);
@@ -2728,9 +2735,67 @@ function renderSecondChip() {
 }
 
 /* ── Keyboard ────────────────────────────────────────────────────────── */
+/* ── The clicker, and which window has the keyboard ──────────────────────
+   A presenter's clicker is a USB keyboard, so its presses land in whichever
+   window the machine has focused — and standing at the projector, that is the
+   audience window. It has no controls of its own, so it used to swallow them
+   and the deck simply stopped moving with no sign of why.
+
+   It now hands the keys it cannot use to the window that can, through the same
+   localStorage the two windows are already synced through. The operator picks
+   them up on the storage event, and again on its own tick in case the event
+   does not arrive — a click that does nothing is the failure worth ruling out
+   twice. */
+const NUDGE = "bies-event-screen-nudge-v1";
+const NUDGE_KEYS = ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp",
+                    "PageDown", "PageUp", "b", "B", "x", "X"];
+
+function boardKey(k) {
+  switch (k) {
+    case "ArrowRight": if (airDeck()) airStep(1);  else advance(); return;
+    case "ArrowLeft":  if (airDeck()) airStep(-1); else back();    return;
+    case "ArrowDown":  case "PageDown": if (airDeck()) airStep(1);  return;
+    case "ArrowUp":    case "PageUp":   if (airDeck()) airStep(-1); return;
+    case "b": case "B": rt.blackout = !rt.blackout; tick(); return;
+    case "x": case "X": airOff(); return;
+  }
+}
+
+let nudgeSeq = 0;
+function sendNudge(k) {
+  /* Date.now() is the sequence, so it doubles as the staleness check — but two
+     clicks inside the same millisecond would write the same number twice, and a
+     localStorage value that does not change fires no storage event at all. */
+  const n = Math.max(Date.now(), nudgeSeq + 1);
+  nudgeSeq = n;
+  try { localStorage.setItem(NUDGE, JSON.stringify({ n, k })); } catch (_) {}
+}
+
+let lastNudge = 0;
+try {                                  // whatever is already there is not for us
+  const seen = JSON.parse(localStorage.getItem(NUDGE) || "null");
+  if (seen && seen.n) lastNudge = seen.n;
+} catch (_) {}
+
+function takeNudge() {
+  if (AUDIENCE) return;
+  let r = null;
+  try { r = JSON.parse(localStorage.getItem(NUDGE) || "null"); } catch (_) { return; }
+  if (!r || !r.n || r.n <= lastNudge) return;
+  lastNudge = r.n;
+  if (Date.now() - r.n > 5000) return;         // a press from an earlier sitting
+  boardKey(r.k);
+}
+
+window.addEventListener("storage", e => {
+  if (e && e.key && e.key !== NUDGE) return;
+  takeNudge();
+});
+
 document.addEventListener("keydown", e => {
   if (AUDIENCE) {                      // a mirror has no controls of its own
-    if (e.key === "f" || e.key === "F") fullscreen();
+    if (e.key === "f" || e.key === "F") { fullscreen(); return; }
+    if (NUDGE_KEYS.indexOf(e.key) >= 0) { e.preventDefault(); sendNudge(e.key); }
     return;
   }
   if ($("#timepop").classList.contains("on")) {      // innermost thing first
@@ -2757,19 +2822,15 @@ document.addEventListener("keydown", e => {
        for, and what half the presenter clickers in circulation send. N and P
        still move the running order whether or not a deck is up, so nothing
        ever becomes unreachable. */
-    case "ArrowRight":
-      if (airDeck()) { e.preventDefault(); airStep(1); } else advance();
+    case "ArrowRight": case "ArrowLeft":
+    case "ArrowDown":  case "ArrowUp":
+    case "PageDown":   case "PageUp":
+      if (airDeck()) e.preventDefault();
+      boardKey(k);
       break;
-    case "ArrowLeft":
-      if (airDeck()) { e.preventDefault(); airStep(-1); } else back();
-      break;
-    case "ArrowDown": if (airDeck()) { e.preventDefault(); airStep(1); }  break;
-    case "ArrowUp":   if (airDeck()) { e.preventDefault(); airStep(-1); } break;
     case "n": case "N": advance(); break;
     case "p": case "P": back(); break;
-    case "x": case "X": airOff(); break;
-    case "PageDown": if (airDeck()) { e.preventDefault(); airStep(1); }  break;
-    case "PageUp":   if (airDeck()) { e.preventDefault(); airStep(-1); } break;
+    case "x": case "X": boardKey(k); break;
     case "=": slip(5); break;
     case "+": slip(1); break;
     case "-": slip(-5); break;
@@ -2788,7 +2849,7 @@ document.addEventListener("keydown", e => {
       break;
     }
     case "r": case "R": rt.pinned = null; rt.panelSince = Date.now(); tick(); break;
-    case "b": case "B": rt.blackout = !rt.blackout; tick(); break;
+    case "b": case "B": boardKey(k); break;
     case "t": case "T":
       cfg.hideTimes = !cfg.hideTimes;
       save(); tick();
